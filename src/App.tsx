@@ -190,7 +190,9 @@ export default function App() {
           <>
             {activeRegistration ? (
               <DemandRegistrationFlow
-                key={`${activeRegistration.curso.id}_${activeRegistration.setor}_${refreshKey}`}
+                // Sem refreshKey: cada salvamento dispara um snapshot da nuvem, e remontar o
+                // fluxo perderia o estado (popup de conclusão e módulo atual).
+                key={`${activeRegistration.curso.id}_${activeRegistration.setor}`}
                 curso={activeRegistration.curso}
                 cursoInicial={activeRegistration.curso}
                 initialSetor={activeRegistration.setor}
