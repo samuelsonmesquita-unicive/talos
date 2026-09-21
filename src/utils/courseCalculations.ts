@@ -35,7 +35,7 @@ export function calcularCustoRegistro(
   cargo: Cargo = 'Professor'
 ): { salario: number; custo: number } {
   const salario = buscar_salario(carga_horaria, cargo);
-  const custo = quantidade * salario * 3 (módulo trimestral);
+  const custo = quantidade * salario * MESES_POR_MODULO;
   return { salario, custo };
 }
 
