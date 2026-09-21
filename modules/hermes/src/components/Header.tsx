@@ -9,7 +9,9 @@ import {
   Cloud,
   CloudCheck,
   Lock,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface HeaderProps {
   activeTab: 'cadastro' | 'consulta' | 'relatorio-curso' | 'relatorio-geral';
@@ -24,6 +26,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
   onOpenSalaryModal,
 }) => {
+  const { profile, isAdmin, signOut } = useAuth();
+
   return (
     <header className="bg-white border-b border-[#e2e8e4] sticky top-0 z-40 shadow-xs">
       {/* Barra superior de identificação institucional */}
@@ -42,13 +46,37 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-1.5 bg-[#143529] px-2.5 py-0.5 rounded-full border border-emerald-700/60 text-emerald-300">
               <CloudCheck className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               <span className="font-semibold text-[10px] tracking-wide whitespace-nowrap">
-                NUVEM CENTRALIZADA &bull; FIRESTORE
+                NUVEM CENTRALIZADA &bull; SUPABASE
               </span>
             </div>
 
             <span className="text-emerald-400 font-bold bg-[#143529] px-2 py-0.5 rounded border border-emerald-700/50 hidden md:inline whitespace-nowrap">
               Setores Pedagógico &bull; Estágio
             </span>
+
+            {profile && (
+              <div className="flex items-center gap-2 bg-[#143529] px-2.5 py-0.5 rounded-full border border-emerald-700/60">
+                <span className="text-[10px] text-emerald-100 max-w-[180px] truncate" title={profile.email}>
+                  {profile.email}
+                </span>
+                <span
+                  className={`text-[9px] font-bold uppercase px-1.5 rounded ${
+                    isAdmin ? 'bg-[#e7972a] text-[#0d281e]' : 'bg-emerald-700/60 text-emerald-100'
+                  }`}
+                >
+                  {isAdmin ? 'Admin' : 'Staff'}
+                </span>
+                <button
+                  type="button"
+                  id="btn-sair"
+                  onClick={signOut}
+                  title="Sair"
+                  className="text-emerald-300 hover:text-white cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

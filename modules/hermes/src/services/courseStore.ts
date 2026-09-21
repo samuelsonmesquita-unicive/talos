@@ -7,235 +7,31 @@ import {
   normalizeCourseKey,
   recalcularCurso,
 } from '../utils/courseCalculations';
+import { clearStoredSalaryConfig, saveStoredSalaryConfig } from '../utils/salary';
 import {
   syncCourseToCloud,
   syncRegistroToCloud,
   deleteCourseFromCloud,
   deleteSingleRegistroFromCloud,
-  clearCourseRecordsFromCloud,
-  syncAllToCloud,
+  resetSectorInCloud,
   fetchCoursesFromCloud,
   fetchRegistrosFromCloud,
-  migrateLegacyCloudData,
+  fetchSalaryConfigFromCloud,
 } from './cloudSync';
 
+// O localStorage é apenas um cache de leitura rápida/otimista. A fonte da verdade é o
+// Supabase: o banco recalcula salário, custo, status e totais, e o tempo real (App.tsx)
+// sobrescreve este cache com os valores oficiais.
 const COURSES_STORAGE_KEY = 'unicive_demandas_cursos_v2';
 const REGISTROS_STORAGE_KEY = 'unicive_demandas_registros_v2';
 
-// Dados iniciais de demonstração
-function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] } {
-  const agora = new Date().toISOString();
-  let indiceCounter = 1;
-
-  // 1. Curso Completo: Administração (Bacharel - 4 anos = 16 módulos)
-  const admKey = normalizeCourseKey('Administração', 'Bacharel');
-  const admRegistros: RegistroItem[] = [];
-
-  for (let s = 1; s <= 16; s++) {
-    // Pedagógico
-    const { salario: sProfP, custo: cProfP } = calcularCustoRegistro(1, '20h', 'Professor');
-    admRegistros.push({
-      id: `${admKey}_ped_${s}_prof`,
-      indice: indiceCounter++,
-      nome_curso: 'Administração',
-      grau: 'Bacharel',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Professor',
-      quantidade: 1,
-      carga_horaria: '20h',
-      salario: sProfP,
-      custo: cProfP,
-      criado_em: agora,
-    });
-    const { salario: sMedP, custo: cMedP } = calcularCustoRegistro(1, '10h', 'Mediador');
-    admRegistros.push({
-      id: `${admKey}_ped_${s}_med`,
-      indice: indiceCounter++,
-      nome_curso: 'Administração',
-      grau: 'Bacharel',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Mediador',
-      quantidade: 1,
-      carga_horaria: '10h',
-      salario: sMedP,
-      custo: cMedP,
-      criado_em: agora,
-    });
-
-    // Estágio
-    const { salario: sProfE, custo: cProfE } = calcularCustoRegistro(1, '10h', 'Professor');
-    admRegistros.push({
-      id: `${admKey}_est_${s}_prof`,
-      indice: indiceCounter++,
-      nome_curso: 'Administração',
-      grau: 'Bacharel',
-      setor: 'Estágio',
-      modulo: s,
-      cargo: 'Professor',
-      quantidade: 1,
-      carga_horaria: '10h',
-      salario: sProfE,
-      custo: cProfE,
-      criado_em: agora,
-    });
-    const { salario: sMedE, custo: cMedE } = calcularCustoRegistro(1, '10h', 'Mediador');
-    admRegistros.push({
-      id: `${admKey}_est_${s}_med`,
-      indice: indiceCounter++,
-      nome_curso: 'Administração',
-      grau: 'Bacharel',
-      setor: 'Estágio',
-      modulo: s,
-      cargo: 'Mediador',
-      quantidade: 1,
-      carga_horaria: '10h',
-      salario: sMedE,
-      custo: cMedE,
-      criado_em: agora,
-    });
-  }
-
-  const cursoAdmBase: CursoMestre = {
-    id: admKey,
-    nome_curso: 'Administração',
-    grau: 'Bacharel',
-    duracao_curso: 4.0,
-    quantidade_modulos: 16,
-    status_pedagogico: 'completo',
-    status_estagio: 'completo',
-    status_geral: 'completo',
-    custo_total_pedagogico: 0,
-    custo_mensal_medio_pedagogico: 0,
-    custo_total_estagio: 0,
-    custo_mensal_medio_estagio: 0,
-    custo_total_curso: 0,
-    custo_mensal_medio_curso: 0,
-    dados_parciais: false,
-    criado_em: agora,
-    atualizado_em: agora,
-  };
-  const { curso: cursoAdmRecalc } = recalcularCurso(cursoAdmBase, admRegistros);
-
-  // 2. Curso Incompleto: ADS
-  const adsKey = normalizeCourseKey('Análise e Desenvolvimento de Sistemas', 'Tecnólogo');
-  const adsRegistros: RegistroItem[] = [];
-  for (let s = 1; s <= 4; s++) {
-    const { salario: sP, custo: cP } = calcularCustoRegistro(1, '20h', 'Professor');
-    adsRegistros.push({
-      id: `${adsKey}_ped_${s}_prof`,
-      indice: indiceCounter++,
-      nome_curso: 'Análise e Desenvolvimento de Sistemas',
-      grau: 'Tecnólogo',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Professor',
-      quantidade: 1,
-      carga_horaria: '20h',
-      salario: sP,
-      custo: cP,
-      criado_em: agora,
-    });
-    const { salario: sM, custo: cM } = calcularCustoRegistro(1, '10h', 'Mediador');
-    adsRegistros.push({
-      id: `${adsKey}_ped_${s}_med`,
-      indice: indiceCounter++,
-      nome_curso: 'Análise e Desenvolvimento de Sistemas',
-      grau: 'Tecnólogo',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Mediador',
-      quantidade: 1,
-      carga_horaria: '10h',
-      salario: sM,
-      custo: cM,
-      criado_em: agora,
-    });
-  }
-
-  const cursoAdsBase: CursoMestre = {
-    id: adsKey,
-    nome_curso: 'Análise e Desenvolvimento de Sistemas',
-    grau: 'Tecnólogo',
-    duracao_curso: 2.5,
-    quantidade_modulos: 10,
-    status_pedagogico: 'incompleto',
-    status_estagio: 'não iniciado',
-    status_geral: 'parcial',
-    custo_total_pedagogico: 0,
-    custo_mensal_medio_pedagogico: 0,
-    custo_total_estagio: 0,
-    custo_mensal_medio_estagio: 0,
-    custo_total_curso: 0,
-    custo_mensal_medio_curso: 0,
-    dados_parciais: true,
-    criado_em: agora,
-    atualizado_em: agora,
-  };
-  const { curso: cursoAdsRecalc } = recalcularCurso(cursoAdsBase, adsRegistros);
-
-  // 3. Curso Pedagogia
-  const pedKey = normalizeCourseKey('Pedagogia', 'Bacharel');
-  const pedRegistros: RegistroItem[] = [];
-  for (let s = 1; s <= 16; s++) {
-    const { salario: sP, custo: cP } = calcularCustoRegistro(1, '20h', 'Professor');
-    pedRegistros.push({
-      id: `${pedKey}_ped_${s}_prof`,
-      indice: indiceCounter++,
-      nome_curso: 'Pedagogia',
-      grau: 'Bacharel',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Professor',
-      quantidade: 1,
-      carga_horaria: '20h',
-      salario: sP,
-      custo: cP,
-      criado_em: agora,
-    });
-    const { salario: sM, custo: cM } = calcularCustoRegistro(1, '10h', 'Mediador');
-    pedRegistros.push({
-      id: `${pedKey}_ped_${s}_med`,
-      indice: indiceCounter++,
-      nome_curso: 'Pedagogia',
-      grau: 'Bacharel',
-      setor: 'Pedagógico',
-      modulo: s,
-      cargo: 'Mediador',
-      quantidade: 1,
-      carga_horaria: '10h',
-      salario: sM,
-      custo: cM,
-      criado_em: agora,
-    });
-  }
-
-  const cursoPedBase: CursoMestre = {
-    id: pedKey,
-    nome_curso: 'Pedagogia',
-    grau: 'Bacharel',
-    duracao_curso: 4.0,
-    quantidade_modulos: 16,
-    status_pedagogico: 'completo',
-    status_estagio: 'não iniciado',
-    status_geral: 'parcial',
-    custo_total_pedagogico: 0,
-    custo_mensal_medio_pedagogico: 0,
-    custo_total_estagio: 0,
-    custo_mensal_medio_estagio: 0,
-    custo_total_curso: 0,
-    custo_mensal_medio_curso: 0,
-    dados_parciais: true,
-    criado_em: agora,
-    atualizado_em: agora,
-  };
-  const { curso: cursoPedRecalc } = recalcularCurso(cursoPedBase, pedRegistros);
-
-  return {
-    courses: [cursoAdmRecalc, cursoAdsRecalc, cursoPedRecalc],
-    registros: [...admRegistros, ...adsRegistros, ...pedRegistros],
-  };
+/** UUID v4 (funciona também em contextos não seguros, onde crypto.randomUUID não existe). */
+function newId(): string {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 export function getAllCourses(): CursoMestre[] {
@@ -247,10 +43,7 @@ export function getAllCourses(): CursoMestre[] {
   } catch (e) {
     console.error('Erro ao ler cursos do localStorage', e);
   }
-  const initial = getInitialData();
-  saveAllCourses(initial.courses);
-  saveAllRegistros(initial.registros);
-  return initial.courses;
+  return [];
 }
 
 export function getAllRegistros(): RegistroItem[] {
@@ -262,10 +55,7 @@ export function getAllRegistros(): RegistroItem[] {
   } catch (e) {
     console.error('Erro ao ler registros do localStorage', e);
   }
-  const initial = getInitialData();
-  saveAllCourses(initial.courses);
-  saveAllRegistros(initial.registros);
-  return initial.registros;
+  return [];
 }
 
 export function saveAllCourses(courses: CursoMestre[]): void {
@@ -284,37 +74,30 @@ export function saveAllRegistros(registros: RegistroItem[]): void {
   }
 }
 
+/** Remove os dados em cache deste navegador (ex.: ao sair da conta em computador compartilhado). */
+export function clearLocalCache(): void {
+  try {
+    localStorage.removeItem(COURSES_STORAGE_KEY);
+    localStorage.removeItem(REGISTROS_STORAGE_KEY);
+    clearStoredSalaryConfig();
+  } catch (e) {
+    console.error('Erro ao limpar cache local', e);
+  }
+}
+
 /**
- * Inicialização / Sincronização automática com a Nuvem (Firestore)
+ * Carga inicial: substitui o cache local pelos dados oficiais do Supabase.
+ * Lança erro se a nuvem estiver inacessível (o chamador mostra "offline").
  */
 export async function initializeCloudDatabase(): Promise<void> {
-  try {
-    // Converte dados legados (semestres) da nuvem em módulos trimestrais
-    await migrateLegacyCloudData();
-    const cloudCourses = await fetchCoursesFromCloud();
-    const cloudRegistros = await fetchRegistrosFromCloud();
-
-    if (cloudCourses.length > 0) {
-      saveAllCourses(cloudCourses);
-      saveAllRegistros(cloudRegistros);
-    } else {
-      const localCourses = getAllCourses();
-      const localRegistros = getAllRegistros();
-      if (localCourses.length > 0) {
-        await syncAllToCloud(localCourses, localRegistros);
-      }
-    }
-
-    // Migração/Atualização automática para a nova regra de encargos trabalhistas (+***%)
-    const RULES_VERSION_KEY = 'unicive_rules_version';
-    const CURRENT_RULES_VERSION = 'v3_modulos_trimestrais';
-    if (localStorage.getItem(RULES_VERSION_KEY) !== CURRENT_RULES_VERSION) {
-      recalcularTodosOsCursos();
-      localStorage.setItem(RULES_VERSION_KEY, CURRENT_RULES_VERSION);
-    }
-  } catch (err) {
-    console.warn('Erro ao inicializar sincronização com Firestore:', err);
-  }
+  const [courses, registros, salary] = await Promise.all([
+    fetchCoursesFromCloud(),
+    fetchRegistrosFromCloud(),
+    fetchSalaryConfigFromCloud(),
+  ]);
+  saveAllCourses(courses);
+  saveAllRegistros(registros);
+  if (salary) saveStoredSalaryConfig(salary);
 }
 
 export function findCourseByKey(nome_curso: string, grau: Grau): CursoMestre | undefined {
@@ -401,7 +184,8 @@ export function upsertCourseMaster(
 }
 
 /**
- * Salva ou atualiza um registro e sincroniza com a nuvem
+ * Salva ou atualiza um registro. O cálculo local é otimista; o banco recalcula salário,
+ * custo e totais do curso e o tempo real devolve os valores oficiais.
  */
 export function saveOrUpdateRegistro(
   nome_curso: string,
@@ -416,7 +200,7 @@ export function saveOrUpdateRegistro(
   const allRegistros = getAllRegistros();
   const allCourses = getAllCourses();
 
-  let course = allCourses.find((c) => c.id === key);
+  const course = allCourses.find((c) => c.id === key);
   if (!course) {
     throw new Error('Curso não encontrado para salvar registro.');
   }
@@ -447,7 +231,7 @@ export function saveOrUpdateRegistro(
   } else {
     const maxIndice = allRegistros.reduce((max, r) => Math.max(max, r.indice || 0), 0);
     updatedRegistro = {
-      id: `${key}_${setor.toLowerCase()}_${modulo}_${cargo.toLowerCase()}_${Date.now()}`,
+      id: newId(),
       indice: maxIndice + 1,
       nome_curso: course.nome_curso,
       grau: course.grau,
@@ -466,7 +250,7 @@ export function saveOrUpdateRegistro(
   saveAllRegistros(newRegistrosList);
   syncRegistroToCloud(updatedRegistro);
 
-  // Recálculo em cascata imediato
+  // Recálculo local imediato (otimista); o banco recalcula o curso de forma oficial.
   const registrosCurso = newRegistrosList.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
@@ -476,13 +260,12 @@ export function saveOrUpdateRegistro(
     c.id === key ? cursoRecalculado : c
   );
   saveAllCourses(newCoursesList);
-  syncCourseToCloud(cursoRecalculado);
 
   return { registro: updatedRegistro, curso: cursoRecalculado };
 }
 
 /**
- * Exclui um único registro individual e recalcula em cascata
+ * Exclui um único registro individual e recalcula em cascata (somente admin no banco)
  */
 export function deleteSingleRegistro(
   nome_curso: string,
@@ -498,11 +281,9 @@ export function deleteSingleRegistro(
     throw new Error('Curso não encontrado.');
   }
 
-  // Remove o registro selecionado
   const updatedRegistros = allRegistros.filter((r) => r.id !== registroId);
   saveAllRegistros(updatedRegistros);
 
-  // Recalcula o curso
   const registrosRestantes = updatedRegistros.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
@@ -513,66 +294,14 @@ export function deleteSingleRegistro(
   );
   saveAllCourses(updatedCourses);
 
-  // Sincroniza exclusão no Firestore
   deleteSingleRegistroFromCloud(registroId);
-  syncCourseToCloud(cursoRecalculado);
 
   return cursoRecalculado;
 }
 
 /**
- * Limpa todos os registros de um curso e zera suas métricas (Pedagógico e Estágio)
- */
-export function clearAllRegistrosFromCourse(
-  nome_curso: string,
-  grau: Grau
-): CursoMestre {
-  const key = normalizeCourseKey(nome_curso, grau);
-  const allRegistros = getAllRegistros();
-  const allCourses = getAllCourses();
-
-  const course = allCourses.find((c) => c.id === key);
-  if (!course) {
-    throw new Error('Curso não encontrado.');
-  }
-
-  // Remove todos os registros pertencentes a este curso
-  const updatedRegistros = allRegistros.filter(
-    (r) => normalizeCourseKey(r.nome_curso, r.grau) !== key
-  );
-  saveAllRegistros(updatedRegistros);
-
-  // Zera métricas do curso
-  const agora = new Date().toISOString();
-  const cursoZerado: CursoMestre = {
-    ...course,
-    status_pedagogico: 'não iniciado',
-    status_estagio: 'não iniciado',
-    status_geral: 'parcial',
-    custo_total_pedagogico: 0,
-    custo_mensal_medio_pedagogico: 0,
-    custo_total_estagio: 0,
-    custo_mensal_medio_estagio: 0,
-    custo_total_curso: 0,
-    custo_mensal_medio_curso: 0,
-    dados_parciais: true,
-    atualizado_em: agora,
-  };
-
-  const updatedCourses = allCourses.map((c) =>
-    c.id === key ? cursoZerado : c
-  );
-  saveAllCourses(updatedCourses);
-
-  // Limpa registros do curso na nuvem e atualiza status mestre
-  clearCourseRecordsFromCloud(key);
-  syncCourseToCloud(cursoZerado);
-
-  return cursoZerado;
-}
-
-/**
- * Recalcula todos os registros e cursos existentes baseado na tabela salarial atual
+ * Recalcula localmente todos os registros e cursos com a tabela salarial atual.
+ * O recálculo oficial é feito pelo banco quando a tabela salarial é alterada.
  */
 export function recalcularTodosOsCursos(): void {
   const allRegistros = getAllRegistros();
@@ -596,13 +325,10 @@ export function recalcularTodosOsCursos(): void {
     return cursoRecalc;
   });
   saveAllCourses(cursosAtualizados);
-
-  // Sincroniza todas as alterações na nuvem
-  syncAllToCloud(cursosAtualizados, registrosAtualizados);
 }
 
 /**
- * Seção 4.4: Reiniciar setor do zero (Opção "Não")
+ * Seção 4.4: Reiniciar setor do zero (Opção "Não") — o banco só aceita setor incompleto
  */
 export function resetSectorData(
   nome_curso: string,
@@ -637,14 +363,13 @@ export function resetSectorData(
   );
   saveAllCourses(updatedCourses);
 
-  // Atualiza nuvem
-  syncCourseToCloud(cursoRecalculado);
+  resetSectorInCloud(key, setor);
 
   return cursoRecalculado;
 }
 
 /**
- * Exclui um curso e todos os seus registros
+ * Exclui um curso e todos os seus registros (somente admin no banco)
  */
 export function deleteCourse(nome_curso: string, grau: Grau): void {
   const key = normalizeCourseKey(nome_curso, grau);
@@ -666,7 +391,6 @@ export function deleteCourse(nome_curso: string, grau: Grau): void {
   saveAllCourses(filteredCourses);
   saveAllRegistros(filteredRegistros);
 
-  // Exclui da nuvem Firestore (curso e registros)
   deleteCourseFromCloud(key);
 }
 
@@ -690,16 +414,4 @@ export function getNextPendingModule(
     }
   }
   return 1;
-}
-
-/**
- * Restaura dados padrões
- */
-export function resetToDefaults(): void {
-  localStorage.removeItem(COURSES_STORAGE_KEY);
-  localStorage.removeItem(REGISTROS_STORAGE_KEY);
-  const initial = getInitialData();
-  saveAllCourses(initial.courses);
-  saveAllRegistros(initial.registros);
-  syncAllToCloud(initial.courses, initial.registros);
 }

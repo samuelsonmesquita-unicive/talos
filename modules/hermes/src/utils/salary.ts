@@ -139,6 +139,14 @@ export function restoreDefaultSalaryConfig(): void {
   saveSalaryConfig(DEFAULT_SALARY_CONFIG);
 }
 
+export function clearStoredSalaryConfig(): void {
+  try {
+    localStorage.removeItem(SALARY_CONFIG_KEY);
+  } catch (e) {
+    console.error('Falha ao limpar configuração salarial', e);
+  }
+}
+
 export const getStoredSalaryConfig = getSalaryConfig;
 export const saveStoredSalaryConfig = saveSalaryConfig;
 

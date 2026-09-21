@@ -24,8 +24,8 @@ import {
   Search,
   Trash2,
   ShieldAlert,
-  KeyRound,
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface ConsultRecordsViewProps {
   initialCourse?: CursoMestre | null;
@@ -34,15 +34,14 @@ interface ConsultRecordsViewProps {
   onDataChanged?: () => void;
 }
 
-// Senha de privilégio para confirmação de exclusão
-const ADMIN_PASSWORD_REQUIRED = 'Novosnegocios@123';
-
 export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
   initialCourse,
   onSelectCourseForFlow,
   onGoToReport,
   onDataChanged,
 }) => {
+  // Exclusões são privilégio do perfil admin (profiles.role), não de senha no front
+  const { isAdmin } = useAuth();
   const [courses, setCourses] = useState<CursoMestre[]>(() => getAllCourses());
   const [selectedCourseKey, setSelectedCourseKey] = useState<string>(
     initialCourse ? initialCourse.id : (courses[0]?.id || '')
@@ -91,14 +90,12 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
   const [editError, setEditError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  // Estados para EXCLUIR O CURSO INTEIRO (com senha)
+  // Estados para EXCLUIR O CURSO INTEIRO (somente admin)
   const [isDeleteCourseModalOpen, setIsDeleteCourseModalOpen] = useState(false);
-  const [deleteCoursePasswordInput, setDeleteCoursePasswordInput] = useState('');
   const [deleteCourseError, setDeleteCourseError] = useState<string | null>(null);
 
-  // Estados para APAGAR REGISTRO INDIVIDUAL (com senha)
+  // Estados para APAGAR REGISTRO INDIVIDUAL (somente admin)
   const [recordToDelete, setRecordToDelete] = useState<RegistroItem | null>(null);
-  const [singleDeletePassword, setSingleDeletePassword] = useState('');
   const [singleDeleteError, setSingleDeleteError] = useState<string | null>(null);
 
   const handleClickEditar = (reg: RegistroItem) => {
@@ -159,8 +156,8 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
 
     if (!activeCourse) return;
 
-    if (deleteCoursePasswordInput !== ADMIN_PASSWORD_REQUIRED) {
-      setDeleteCourseError('Senha de privilégio incorreta. Operação cancelada por segurança.');
+    if (!isAdmin) {
+      setDeleteCourseError('Apenas administradores podem excluir cursos.');
       return;
     }
 
@@ -182,10 +179,9 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
     }
 
     setIsDeleteCourseModalOpen(false);
-    setDeleteCoursePasswordInput('');
 
     setSuccessNotice(
-      `O curso "${cursoNome} (${cursoGrau})" e todos os seus registros foram excluídos com sucesso do sistema e da nuvem Firestore!`
+      `O curso "${cursoNome} (${cursoGrau})" e todos os seus registros foram excluídos com sucesso do sistema e da nuvem!`
     );
     if (onDataChanged) onDataChanged();
     setTimeout(() => setSuccessNotice(null), 5000);
@@ -198,8 +194,8 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
 
     if (!activeCourse || !recordToDelete) return;
 
-    if (singleDeletePassword !== ADMIN_PASSWORD_REQUIRED) {
-      setSingleDeleteError('Senha de privilégio incorreta. Operação cancelada.');
+    if (!isAdmin) {
+      setSingleDeleteError('Apenas administradores podem excluir registros.');
       return;
     }
 
@@ -211,7 +207,6 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
       `Registro #${recordToDelete.indice} (${recordToDelete.setor} - ${recordToDelete.modulo}º mód.) foi excluído com sucesso e o curso recalculado.`
     );
     setRecordToDelete(null);
-    setSingleDeletePassword('');
     if (onDataChanged) onDataChanged();
     setTimeout(() => setSuccessNotice(null), 4500);
   };
@@ -246,7 +241,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Visualização, edição e gestão de registros centralizados na nuvem Firestore.
+            Visualização, edição e gestão de registros centralizados na nuvem.
           </p>
         </div>
 
@@ -470,7 +465,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                 {activeCourse.nome_curso} ({activeCourse.grau})
               </p>
               <p className="text-[11px] text-red-700">
-                Esta ação apagará <strong>o curso por completo</strong> e todos os seus <strong>{registros.length} registros</strong> (Pedagógico e Estágio) tanto da aplicação quanto da nuvem Firestore. Não será possível recuperá-lo.
+                Esta ação apagará <strong>o curso por completo</strong> e todos os seus <strong>{registros.length} registros</strong> (Pedagógico e Estágio) tanto da aplicação quanto da nuvem. Não será possível recuperá-lo.
               </p>
             </div>
 
@@ -482,30 +477,11 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
             )}
 
             <form onSubmit={handleExecuteDeleteCourse} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Digite a Senha de Privilégio para Confirmar:
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    required
-                    autoFocus
-                    value={deleteCoursePasswordInput}
-                    onChange={(e) => setDeleteCoursePasswordInput(e.target.value)}
-                    placeholder="Digite a senha institucional"
-                    className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                </div>
-              </div>
-
               <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setIsDeleteCourseModalOpen(false);
-                    setDeleteCoursePasswordInput('');
                     setDeleteCourseError(null);
                   }}
                   className="btn-unicive-outline text-xs"
@@ -526,7 +502,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: EXCLUIR REGISTRO INDIVIDUAL COM SENHA */}
+      {/* MODAL 4: EXCLUIR REGISTRO INDIVIDUAL (SOMENTE ADMIN) */}
       {recordToDelete && activeCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65">
           <div className="bg-white rounded-2xl border border-red-200 max-w-sm w-full p-6 shadow-2xl space-y-4">
@@ -550,27 +526,11 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
             )}
 
             <form onSubmit={handleExecuteDeleteSingle} className="space-y-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Senha de privilégio:
-                </label>
-                <input
-                  type="password"
-                  required
-                  autoFocus
-                  value={singleDeletePassword}
-                  onChange={(e) => setSingleDeletePassword(e.target.value)}
-                  placeholder="Digite a senha institucional"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setRecordToDelete(null);
-                    setSingleDeletePassword('');
                     setSingleDeleteError(null);
                   }}
                   className="btn-unicive-outline flex-1 text-xs"
@@ -607,20 +567,21 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                 {registros.length} registros
               </span>
 
-              {/* BOTÃO PARA EXCLUIR O CURSO INTEIRO */}
-              <button
-                id="btn-excluir-curso-inteiro"
-                onClick={() => {
-                  setDeleteCourseError(null);
-                  setDeleteCoursePasswordInput('');
-                  setIsDeleteCourseModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg border border-red-200 transition-colors cursor-pointer text-xs"
-                title="Excluir o curso inteiro e todos os seus registros do sistema e da nuvem com proteção de senha"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                <span>Excluir Curso</span>
-              </button>
+              {/* BOTÃO PARA EXCLUIR O CURSO INTEIRO (SOMENTE ADMIN) */}
+              {isAdmin && (
+                <button
+                  id="btn-excluir-curso-inteiro"
+                  onClick={() => {
+                    setDeleteCourseError(null);
+                    setIsDeleteCourseModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg border border-red-200 transition-colors cursor-pointer text-xs"
+                  title="Excluir o curso inteiro e todos os seus registros (somente administradores)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Excluir Curso</span>
+                </button>
+              )}
 
               {onGoToReport && (
                 <button
@@ -706,17 +667,18 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                           <Edit3 className="w-3 h-3" />
                           Editar
                         </button>
-                        <button
-                          onClick={() => {
-                            setSingleDeleteError(null);
-                            setSingleDeletePassword('');
-                            setRecordToDelete(reg);
-                          }}
-                          className="inline-flex items-center p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                          title="Excluir este registro individualmente com senha"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setSingleDeleteError(null);
+                              setRecordToDelete(reg);
+                            }}
+                            className="inline-flex items-center p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                            title="Excluir este registro (somente administradores)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

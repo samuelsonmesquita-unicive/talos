@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CursoMestre, Grau, Setor, StatusGeral } from '../types';
 import { getAllCourses, deleteCourse } from '../services/courseStore';
 import { formatCurrency } from '../utils/salary';
+import { useAuth } from '../hooks/useAuth';
 import {
   Filter,
   Search,
@@ -42,6 +43,9 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
   onGoToCourseReport,
   onSelectCourseForFlow,
 }) => {
+  // Excluir curso é privilégio do perfil admin (profiles.role)
+  const { isAdmin } = useAuth();
+
   const handleOpenReport = (curso: CursoMestre) => {
     if (onSelectCourseForReport) {
       onSelectCourseForReport(curso);
@@ -170,9 +174,10 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
     sortedCourses.length > 0 && sortedCourses.every((c) => selectedCourseIds.has(c.id));
 
   const handleDeleteCourse = (c: CursoMestre) => {
+    if (!isAdmin) return;
     if (
       window.confirm(
-        `Tem certeza que deseja excluir o curso inteiro "${c.nome_curso} (${c.grau})" e todos os seus registros associados da aplicação e da nuvem Firestore?`
+        `Tem certeza que deseja excluir o curso inteiro "${c.nome_curso} (${c.grau})" e todos os seus registros associados da aplicação e da nuvem?`
       )
     ) {
       deleteCourse(c.nome_curso, c.grau);
@@ -658,13 +663,15 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
                               <ExternalLink className="w-4 h-4" />
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDeleteCourse(c)}
-                            title="Excluir Curso"
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDeleteCourse(c)}
+                              title="Excluir Curso (somente administradores)"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

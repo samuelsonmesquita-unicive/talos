@@ -9,7 +9,12 @@ import { ConsultRecordsView } from './components/ConsultRecordsView';
 import { CourseReportView } from './components/CourseReportView';
 import { GeneralReportDashboard } from './components/GeneralReportDashboard';
 import { initializeCloudDatabase, saveAllCourses, saveAllRegistros } from './services/courseStore';
-import { subscribeToCourses, subscribeToRegistros, subscribeToSalaryConfig } from './services/cloudSync';
+import {
+  subscribeToCourses,
+  subscribeToRegistros,
+  subscribeToSalaryConfig,
+  setCloudErrorHandler,
+} from './services/cloudSync';
 import { saveStoredSalaryConfig } from './utils/salary';
 
 export default function App() {
@@ -38,14 +43,16 @@ export default function App() {
 
   // Notificação rápida tipo popup/toast (ex: "Registro concluído")
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastKind, setToastKind] = useState<'ok' | 'error'>('ok');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const showQuickToast = (msg: string) => {
+  const showQuickToast = (msg: string, kind: 'ok' | 'error' = 'ok') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastKind(kind);
     setToastMessage(msg);
     toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
-    }, 3500);
+    }, kind === 'error' ? 7000 : 3500);
   };
 
   const handleSelectTab = (tab: 'cadastro' | 'consulta' | 'relatorio-curso' | 'relatorio-geral') => {
@@ -77,41 +84,47 @@ export default function App() {
   // Chave para forçar re-render após alterações de dados
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Status de conexão com a nuvem (Firestore)
+  // Status de conexão com a nuvem (Supabase)
   const [cloudStatus, setCloudStatus] = useState<'conectando' | 'conectado' | 'offline'>('conectando');
 
-  // Inicialização e listeners em tempo real com o Firestore
+  // Inicialização e listeners em tempo real com o Supabase
   useEffect(() => {
     let isMounted = true;
+
+    // Falhas de escrita (ex.: sem permissão): avisa o usuário e recarrega os dados oficiais
+    setCloudErrorHandler((message) => {
+      showQuickToast(message, 'error');
+      initializeCloudDatabase()
+        .then(() => {
+          if (isMounted) setRefreshKey((k) => k + 1);
+        })
+        .catch(() => {});
+    });
 
     async function init() {
       try {
         await initializeCloudDatabase();
         if (isMounted) setCloudStatus('conectado');
       } catch (e) {
-        console.warn('Erro ao conectar ao Firestore:', e);
+        console.warn('Erro ao conectar ao Supabase:', e);
         if (isMounted) setCloudStatus('offline');
       }
     }
 
     init();
 
-    // Subscrição em tempo real aos cursos
+    // Subscrição em tempo real aos cursos (o banco é a fonte da verdade, mesmo lista vazia)
     const unsubCourses = subscribeToCourses((cloudCourses) => {
-      if (cloudCourses && cloudCourses.length > 0) {
-        saveAllCourses(cloudCourses);
-        setRefreshKey((k) => k + 1);
-        if (isMounted) setCloudStatus('conectado');
-      }
+      saveAllCourses(cloudCourses);
+      setRefreshKey((k) => k + 1);
+      if (isMounted) setCloudStatus('conectado');
     });
 
     // Subscrição em tempo real aos registros
     const unsubRegistros = subscribeToRegistros((cloudRegs) => {
-      if (cloudRegs && cloudRegs.length > 0) {
-        saveAllRegistros(cloudRegs);
-        setRefreshKey((k) => k + 1);
-        if (isMounted) setCloudStatus('conectado');
-      }
+      saveAllRegistros(cloudRegs);
+      setRefreshKey((k) => k + 1);
+      if (isMounted) setCloudStatus('conectado');
     });
 
     // Subscrição em tempo real à tabela salarial
@@ -124,6 +137,7 @@ export default function App() {
 
     return () => {
       isMounted = false;
+      setCloudErrorHandler(null);
       unsubCourses();
       unsubRegistros();
       unsubSalary();
@@ -267,7 +281,7 @@ export default function App() {
             &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Gestão de Demandas Docentes EaD
           </span>
           <div className="flex items-center gap-3 text-[11px] text-slate-400">
-            <span>Base Centralizada na Nuvem (Google Cloud Firestore)</span>
+            <span>Base Centralizada na Nuvem (Supabase)</span>
             <span>&bull;</span>
             <span>Reajuste Salarial 4% Aplicado</span>
           </div>
@@ -342,11 +356,33 @@ export default function App() {
           id="toast-popup-conclusao"
           className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto transition-all duration-300 transform"
         >
-          <div className="flex items-center gap-3 bg-[#0d281e] text-white px-5 py-3.5 rounded-xl shadow-2xl border border-emerald-500/50 text-sm font-semibold">
-            <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/40">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div
+            className={`flex items-center gap-3 text-white px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold max-w-xl ${
+              toastKind === 'error'
+                ? 'bg-red-900 border-red-500/60'
+                : 'bg-[#0d281e] border-emerald-500/50'
+            }`}
+          >
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border ${
+                toastKind === 'error'
+                  ? 'bg-red-500/20 text-red-300 border-red-400/40'
+                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+              }`}
+            >
+              {toastKind === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-red-300" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              )}
             </div>
-            <span className="text-emerald-100 tracking-wide font-medium">{toastMessage}</span>
+            <span
+              className={`tracking-wide font-medium ${
+                toastKind === 'error' ? 'text-red-100' : 'text-emerald-100'
+              }`}
+            >
+              {toastMessage}
+            </span>
             <button
               type="button"
               onClick={() => setToastMessage(null)}

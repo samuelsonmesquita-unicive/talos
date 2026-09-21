@@ -6,6 +6,7 @@ import {
   formatCurrency,
   restoreDefaultSalaryConfig,
   aplicarEncargosAoSalario,
+  DEFAULT_SALARY_CONFIG,
 } from '../utils/salary';
 import { recalcularTodosOsCursos } from '../services/courseStore';
 import { saveSalaryConfigToCloud } from '../services/cloudSync';
@@ -17,18 +18,15 @@ import {
   CheckCircle2,
   Coins,
   ShieldCheck,
-  KeyRound,
   Lock,
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface SalaryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfigUpdated: () => void;
 }
-
-// Senha de privilégios para alteração salarial institucional (Unicive)
-const ADMIN_SALARY_PASSWORD = 'Novosnegocios@123';
 
 export const SalaryModal: React.FC<SalaryModalProps> = ({
   isOpen,
@@ -39,24 +37,10 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  // Controle de Privilégios / Autenticação
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [inputPassword, setInputPassword] = useState<string>('');
-  const [authError, setAuthError] = useState<string | null>(null);
+  // Privilégio vem do papel da conta (profiles.role), não de senha no front
+  const { isAdmin } = useAuth();
 
   if (!isOpen) return null;
-
-  const handleAuthenticate = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-
-    if (inputPassword.trim() === ADMIN_SALARY_PASSWORD) {
-      setIsAuthenticated(true);
-      setInputPassword('');
-    } else {
-      setAuthError('Senha de privilégio incorreta. Acesso restrito a gestores autorizados.');
-    }
-  };
 
   const handleChange = (cargo: Cargo, ch: CargaHoraria, val: string) => {
     const num = parseFloat(val);
@@ -71,7 +55,7 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated) return;
+    if (!isAdmin) return;
 
     setErrorNotice(null);
 
@@ -88,9 +72,16 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
       }
     }
 
-    // Salva local e na nuvem
+    // O banco valida o perfil admin e recalcula todos os custos; só depois atualiza o cache local
+    try {
+      await saveSalaryConfigToCloud(config);
+    } catch (err) {
+      setErrorNotice(
+        `Não foi possível salvar a tabela salarial: ${err instanceof Error ? err.message : 'erro desconhecido'}`
+      );
+      return;
+    }
     saveStoredSalaryConfig(config);
-    await saveSalaryConfigToCloud(config);
     recalcularTodosOsCursos();
 
     setSuccessNotice(
@@ -105,16 +96,23 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
   };
 
   const handleReset = async () => {
-    if (!isAuthenticated) return;
+    if (!isAdmin) return;
 
     if (
       window.confirm(
         'Deseja restaurar a tabela salarial oficial com o reajuste padrão de 4% (2026/2027) na nuvem?'
       )
     ) {
+      try {
+        await saveSalaryConfigToCloud(DEFAULT_SALARY_CONFIG);
+      } catch (err) {
+        setErrorNotice(
+          `Não foi possível restaurar a tabela salarial: ${err instanceof Error ? err.message : 'erro desconhecido'}`
+        );
+        return;
+      }
       restoreDefaultSalaryConfig();
       const def = getStoredSalaryConfig();
-      await saveSalaryConfigToCloud(def);
       recalcularTodosOsCursos();
       setConfig(def);
       onConfigUpdated();
@@ -149,8 +147,8 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
           </button>
         </div>
 
-        {/* TELA DE AUTENTICAÇÃO SE NÃO FOR AUTORIZADO */}
-        {!isAuthenticated ? (
+        {/* SOMENTE LEITURA PARA QUEM NÃO É ADMINISTRADOR */}
+        {!isAdmin ? (
           <div className="space-y-6">
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
               <Lock className="w-5 h-5 text-[#e7972a] shrink-0 mt-0.5" />
@@ -219,36 +217,12 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
               </div>
             </div>
 
-            {/* Formulário de Desbloqueio com Senha de Privilégio */}
-            <form onSubmit={handleAuthenticate} className="pt-2 border-t border-slate-100 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                <KeyRound className="w-4 h-4 text-[#239371]" />
-                <span>Desbloquear Modo de Edição Salarial:</span>
-              </div>
-
-              {authError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg">
-                  {authError}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={inputPassword}
-                  onChange={(e) => setInputPassword(e.target.value)}
-                  placeholder="Digite a senha de privilégio"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#239371]"
-                />
-                <button
-                  type="submit"
-                  className="btn-unicive-primary text-xs py-2 px-4 whitespace-nowrap"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                  Liberar Edição
-                </button>
-              </div>
-            </form>
+            <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600">
+              <ShieldCheck className="w-4 h-4 text-[#239371] shrink-0" />
+              <span>
+                A edição da tabela salarial é exclusiva de contas com perfil de administrador.
+              </span>
+            </div>
           </div>
         ) : (
           /* MODO AUTORIZADO: FORMULÁRIO DE EDIÇÃO */
@@ -256,15 +230,8 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-[#117d5d]">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#239371]" />
-                <span className="font-bold">Modo de Edição Administrativa Liberado</span>
+                <span className="font-bold">Modo de Edição Administrativa (perfil Admin)</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAuthenticated(false)}
-                className="text-[11px] text-slate-500 hover:text-slate-800 underline"
-              >
-                Bloquear novamente
-              </button>
             </div>
 
             {/* Avisos */}
@@ -355,7 +322,7 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
               </div>
 
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-[#117d5d]">
-                <strong>Sincronização em Nuvem:</strong> As alterações serão salvas imediatamente no Firestore e propagadas para todos os cursos em cascata.
+                <strong>Sincronização em Nuvem:</strong> As alterações serão salvas imediatamente no Supabase e propagadas para todos os cursos em cascata.
               </div>
 
               {/* Ações */}

@@ -14,13 +14,14 @@ O projeto **Talos** é desenhado em arquitetura de módulos autônomos para supo
 talos/
 ├── README.md                      # Documentação Geral do Projeto Talos
 ├── .gitignore                     # Arquivos ignorados pelo Git (node_modules, .env, etc.)
+├── portal/                        # Página inicial do Talos (lista dos módulos)
+├── supabase/migrations/           # Banco de dados compartilhado (SQL): login, perfis e tabelas de cada módulo
 │
 └── modules/
     ├── hermes/                    # [ATIVO] Módulo Hermes: Gestão de Demandas & Matriz de Custo Docente EaD
     │   ├── src/                   # Código fonte React + TypeScript + Tailwind
     │   ├── package.json           # Dependências e scripts do Hermes
     │   ├── vite.config.ts         # Configuração de build Vite
-    │   ├── firestore.rules        # Regras de segurança em nuvem (Firestore)
     │   └── README.md              # Documentação e regras de cálculo do Módulo Hermes
     │
     ├── plutos/                    # [Planejado] Viabilidade Econômico-Financeira & Break-Even
@@ -71,7 +72,7 @@ npm install
 npm run dev
 ```
 
-Acesse a aplicação no navegador em `http://localhost:3000`.
+Acesse a aplicação no navegador em `http://localhost:3000/talos/hermes/`.
 
 ### 3. Build para Produção
 ```bash
@@ -81,5 +82,7 @@ npm run build
 ---
 
 ## 🔒 Banco de Dados e Sincronização em Nuvem
-- **Firebase Firestore:** Integrado com sincronização em tempo real e offline-first.
-- **Parametrizações Salariais:** Modificação de valores protegida por autenticação institucional.
+- **Supabase (PostgreSQL):** banco central com sincronização em tempo real. Custos, encargos e status são calculados no banco (triggers), não no navegador.
+- **Login:** Google Workspace, restrito a contas `@unicive.edu.br` (validado no servidor).
+- **Perfis:** `staff` cadastra e edita; `admin` também altera a tabela salarial e exclui registros e cursos. As permissões são aplicadas pelo banco (RLS e funções `admin_*`).
+- **Configuração local:** copie `.env.example` para `.env.local` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca coloque a chave secreta (service_role) no projeto.

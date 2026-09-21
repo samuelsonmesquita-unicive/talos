@@ -1,4 +1,4 @@
-name: Deploy Frontend to GitHub Pages
+name: Deploy Talos to GitHub Pages
 
 on:
   push:
@@ -28,11 +28,23 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
+      - name: Install dependencies (Hermes)
+        working-directory: modules/hermes
         run: bun install
 
-      - name: Build static website
+      - name: Build Hermes
+        working-directory: modules/hermes
         run: bun run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      # Um único site do Pages abriga todos os módulos: /talos/ (portal) e /talos/<modulo>/
+      - name: Assemble site
+        run: |
+          mkdir -p site/hermes
+          cp -r modules/hermes/dist/. site/hermes/
+          cp portal/index.html site/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -40,7 +52,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './site'
 
       - name: Deploy to GitHub Pages
         id: deployment

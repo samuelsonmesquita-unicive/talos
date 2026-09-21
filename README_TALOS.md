@@ -22,12 +22,13 @@ talos/
 ├── .gitignore                     # Arquivos e pastas ignorados globalmente
 ├── docs/                          # Manuais de governança e arquitetura geral
 │   └── arquitetura-talos.md
+├── portal/                        # Página inicial do Talos (lista dos módulos)
+├── supabase/migrations/           # Banco compartilhado (SQL): login, perfis e tabelas de cada módulo
 └── modules/
     ├── hermes/                    # MÓDULO HERMES: Gestão de Demandas & Matriz de Custo Docente
     │   ├── README.md              # Documentação específica do Módulo Hermes
     │   ├── package.json
     │   ├── vite.config.ts
-    │   ├── firestore.rules
     │   └── src/
     │
     ├── cronos/                    # [Planejado] Cronograma & Lançamento de Novos Cursos
@@ -63,14 +64,14 @@ npm install
 npm run dev
 ```
 
-Acesse no navegador: `http://localhost:3000`.
+Acesse no navegador: `http://localhost:3000/talos/hermes/`.
 
 ---
 
 ## 🔐 Padrões de Segurança & Nuvem
 
-- **Autenticação & Banco de Dados:** Firebase Firestore integrado com regras granulares (`firestore.rules`).
-- **Parametrização Salarial:** Acesso a tabelas de piso, encargos e DSR restrito por senha institucional.
+- **Autenticação & Banco de Dados:** Supabase (Google Workspace `@unicive.edu.br` + PostgreSQL com RLS).
+- **Parametrização Salarial:** Edição da tabela salarial e exclusões restritas ao perfil `admin`, validado no banco.
 - **Versionamento:** Commits seguindo o padrão *Conventional Commits* (`feat:`, `fix:`, `refactor:`, `docs:`).
 
 ---
