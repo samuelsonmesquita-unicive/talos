@@ -92,6 +92,35 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
 
   const [currentSetor, setCurrentSetor] = useState<Setor>(resolvedInitialSetor);
 
+  // Rastreia qual setor foi preenchido PRIMEIRO para bloquear o outro permanentemente
+  const [primeiroSetorPreenchido, setPrimeiroSetorPreenchido] = useState<Setor | null>(() => {
+    const regs = getRegistrosForCourse(curso.nome_curso, curso.grau);
+    if (regs.length === 0) return null;
+
+    // Verifica qual setor tem registros
+    const pedagogicoRegs = regs.filter((r) => r.setor === 'Pedagógico');
+    const estagioRegs = regs.filter((r) => r.setor === 'Estágio');
+
+    // Retorna o setor que tem mais antiguidade (primero criado)
+    if (pedagogicoRegs.length > 0 && estagioRegs.length === 0) return 'Pedagógico';
+    if (estagioRegs.length > 0 && pedagogicoRegs.length === 0) return 'Estágio';
+
+    // Se ambos têm registros, retorna o que tem a data mais antiga
+    if (pedagogicoRegs.length > 0 && estagioRegs.length > 0) {
+      const pedagogicoMin = new Date(Math.min(...pedagogicoRegs.map((r) => new Date(r.criado_em).getTime())));
+      const estagioMin = new Date(Math.min(...estagioRegs.map((r) => new Date(r.criado_em).getTime())));
+      return pedagogicoMin <= estagioMin ? 'Pedagógico' : 'Estágio';
+    }
+
+    return null;
+  });
+
+  // Modal para mostrar conclusão do setor
+  const [showSetorCompletedPopup, setShowSetorCompletedPopup] = useState<{
+    setor: Setor;
+    isPrimeiro: boolean;
+  } | null>(null);
+
   // Registros já existentes no banco local
   const [registros, setRegistros] = useState<RegistroItem[]>(() =>
     getRegistrosForCourse(curso.nome_curso, curso.grau)
@@ -127,8 +156,6 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
   const [formError, setFormError] = useState<string | null>(null);
   const [savedSuccessNotice, setSavedSuccessNotice] = useState<string | null>(null);
 
-  // Modal exibido ao concluir de preencher o último semestre do curso para o setor
-  const [showSectorCompletionModal, setShowSectorCompletionModal] = useState<boolean>(false);
   const otherSetor: Setor = currentSetor === 'Pedagógico' ? 'Estágio' : 'Pedagógico';
 
   // Referências para rolagem e foco
@@ -388,40 +415,19 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
       );
       scrollAndFocusProfessor();
     } else {
-      setShowSectorCompletionModal(true);
+      // Marca este setor como o primeiro preenchido (se ainda não houver)
+      if (!primeiroSetorPreenchido) {
+        setPrimeiroSetorPreenchido(currentSetor);
+      }
+
+      setShowSectorCompletedPopup({
+        setor: currentSetor,
+        isPrimeiro: primeiroSetorPreenchido === null,
+      });
     }
   };
 
-  // Verifica se o outro setor já está 100% preenchido
-  const outroSetorRegistros = registros.filter((r) => r.setor === otherSetor);
-  const isOutroSetorCompleto =
-    outroSetorRegistros.filter((r) => r.cargo === 'Professor').length >= curso.quantidade_semestres &&
-    outroSetorRegistros.filter((r) => r.cargo === 'Mediador').length >= curso.quantidade_semestres;
 
-  // Ação 1: Passar para o outro setor
-  const handlePassarParaOutroSetor = () => {
-    setShowSectorCompletionModal(false);
-    setCurrentSetor(otherSetor);
-    const nextSem = getNextPendingSemester(
-      curso.nome_curso,
-      curso.grau,
-      otherSetor,
-      curso.quantidade_semestres
-    );
-    const alvoSem = nextSem || 1;
-    setCurrentSemestre(alvoSem);
-    loadSemesterData(alvoSem, otherSetor);
-    setSavedSuccessNotice(
-      `Setor ${currentSetor} concluído com sucesso! Preencha agora os dados do setor ${otherSetor} (${alvoSem}º Semestre).`
-    );
-    scrollAndFocusProfessor();
-  };
-
-  // Ação 2: Concluir o registro deste setor (retorna à página inicial e exibe o popup)
-  const handleConcluirRegistro = () => {
-    setShowSectorCompletionModal(false);
-    handleConclude('Registro concluído');
-  };
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 space-y-6">
@@ -480,8 +486,11 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
             return hasP && hasM;
           }).length;
           const isCompleto = completosCount >= curso.quantidade_semestres;
+
+          // REGRA: Se há um setor preenchido, bloqueir o outro permanentemente
+          const isSetorBloqueadoPermanentemente = primeiroSetorPreenchido !== null && primeiroSetorPreenchido !== s;
           // Setor travado enquanto não concluir todos os semestres deste setor ou durante mediador
-          const isSetorBloqueado = (!isSetorTotalmenteConcluido && !isAtivo) || activeCargo === 'Mediador';
+          const isSetorBloqueado = isSetorBloqueadoPermanentemente || (!isSetorTotalmenteConcluido && !isAtivo) || activeCargo === 'Mediador';
 
           return (
             <button
@@ -490,11 +499,17 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
               id={`btn-setor-${s.toLowerCase()}`}
               disabled={isSetorBloqueado}
               title={
-                isSetorBloqueado
+                isSetorBloqueadoPermanentemente
+                  ? `Setor ${s} permanentemente bloqueado: o Setor ${primeiroSetorPreenchido} foi preenchido. Edições devem ser feitas na aba Consultar Registros.`
+                  : isSetorBloqueado
                   ? `Setor ${s} travado: conclua todos os semestres do Setor ${currentSetor} primeiro.`
                   : `Alternar para Setor ${s}`
               }
               onClick={() => {
+                if (isSetorBloqueadoPermanentemente) {
+                  setFormError(`Setor ${s} está permanentemente bloqueado. O Setor ${primeiroSetorPreenchido} já foi concluído. Todas as edições devem ser feitas na aba "Consultar Registros".`);
+                  return;
+                }
                 if (!isSetorBloqueado && currentSetor !== s) {
                   setCurrentSetor(s);
                   const nextSem = getNextPendingSemester(
@@ -1262,70 +1277,62 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
         </form>
       </div>
 
-      {/* MODAL: Conclusão do Último Semestre do Setor */}
-      {showSectorCompletionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-emerald-100 text-[#239371] rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
-              <FileCheck className="w-7 h-7" />
+      {/* MODAL: Setor Preenchido com Sucesso */}
+      {showSetorCompletedPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-emerald-100 text-[#239371] rounded-2xl flex items-center justify-center mx-auto border border-emerald-300 shadow-md">
+              <FileCheck className="w-8 h-8" />
             </div>
 
-            <div className="text-center space-y-2">
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                {currentSetor} &bull; Último Semestre Concluído
+            <div className="text-center space-y-3">
+              <span className="text-[12px] font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider inline-block">
+                ✓ Sucesso
               </span>
-              <h3 className="text-xl font-bold text-slate-900">
-                {isOutroSetorCompleto
-                  ? 'Todos os semestres foram concluídos!'
-                  : `Deseja passar para o setor de ${otherSetor} ou concluir o registro?`}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
-                {isOutroSetorCompleto ? (
+              <h2 className="text-2xl font-bold text-slate-900">
+                Setor {showSetorCompletedPopup.setor} Preenchido
+              </h2>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {showSetorCompletedPopup.isPrimeiro ? (
                   <>
-                    Todos os <strong>{curso.quantidade_semestres} semestres</strong> dos setores <strong>Pedagógico</strong> e <strong>Estágio</strong> foram devidamente preenchidos e salvos no sistema e na nuvem.
+                    Parabéns! Você completou todos os <strong>{curso.quantidade_semestres} semestres</strong> do setor <strong>{showSetorCompletedPopup.setor}</strong>.
+                    <br />
+                    <br />
+                    <span className="text-xs bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-lg inline-block font-semibold">
+                      ⚠️ O setor <strong>{otherSetor}</strong> foi permanentemente bloqueado para edição. Todas as futuras edições devem ser feitas na aba <strong>Consultar Registros</strong>.
+                    </span>
                   </>
                 ) : (
                   <>
-                    Você concluiu o preenchimento de todos os <strong>{curso.quantidade_semestres} semestres</strong> do setor <strong>{currentSetor}</strong>. Deseja passar para o preenchimento do setor <strong>{otherSetor}</strong> agora ou concluir o registro deste setor e retornar à página inicial?
+                    Parabéns! Você completou todos os <strong>{curso.quantidade_semestres} semestres</strong> do setor <strong>{showSetorCompletedPopup.setor}</strong>.
                   </>
                 )}
               </p>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              {!isOutroSetorCompleto && (
-                <button
-                  type="button"
-                  id="btn-passar-outro-setor"
-                  onClick={handlePassarParaOutroSetor}
-                  className="btn-unicive-orange flex-1 py-3 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs rounded-lg"
-                >
-                  <ArrowRight className="w-4 h-4 shrink-0" />
-                  <span>Passar para {otherSetor}</span>
-                </button>
-              )}
-
               <button
                 type="button"
-                id="btn-concluir-registro-setor"
-                onClick={handleConcluirRegistro}
+                id="btn-fechar-popup-setor-preenchido"
+                onClick={() => {
+                  setShowSetorCompletedPopup(null);
+                  handleConclude('Setor ' + showSetorCompletedPopup.setor + ' preenchido com sucesso');
+                }}
                 className="btn-unicive-primary flex-1 py-3 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs rounded-lg"
               >
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>
-                  {isOutroSetorCompleto ? 'Concluir Registro' : 'Concluir o Registro deste Setor'}
-                </span>
+                <span>Retornar ao Início</span>
               </button>
             </div>
 
-            <div className="text-center pt-1 border-t border-slate-100">
+            <div className="text-center pt-3 border-t border-slate-100">
               <button
                 type="button"
-                id="btn-revisar-semestre"
-                onClick={() => setShowSectorCompletionModal(false)}
+                id="btn-revisar-dados-setor"
+                onClick={() => setShowSetorCompletedPopup(null)}
                 className="text-xs text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer transition-colors"
               >
-                Revisar dados deste semestre antes de sair
+                Revisar dados antes de sair
               </button>
             </div>
           </div>
