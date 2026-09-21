@@ -135,7 +135,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
       recordBeingEdited.nome_curso,
       recordBeingEdited.grau,
       recordBeingEdited.setor,
-      recordBeingEdited.semestre,
+      recordBeingEdited.modulo,
       recordBeingEdited.cargo,
       num,
       editCarga
@@ -208,7 +208,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
     setRegistros(updatedList);
 
     setSuccessNotice(
-      `Registro #${recordToDelete.indice} (${recordToDelete.setor} - ${recordToDelete.semestre}º sem) foi excluído com sucesso e o curso recalculado.`
+      `Registro #${recordToDelete.indice} (${recordToDelete.setor} - ${recordToDelete.modulo}º mód.) foi excluído com sucesso e o curso recalculado.`
     );
     setRecordToDelete(null);
     setSingleDeletePassword('');
@@ -291,7 +291,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
               </h3>
               <p className="text-xs text-slate-600 mt-2">
                 Deseja abrir para edição o registro <strong>#{confirmEditRecord.indice}</strong> (
-                {confirmEditRecord.setor} &bull; {confirmEditRecord.semestre}º sem. &bull; {confirmEditRecord.cargo})?
+                {confirmEditRecord.setor} &bull; {confirmEditRecord.modulo}º mód. &bull; {confirmEditRecord.cargo})?
               </p>
             </div>
 
@@ -329,7 +329,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                     Editar Registro #{recordBeingEdited.indice}
                   </h3>
                   <span className="text-[11px] text-slate-500">
-                    {recordBeingEdited.setor} &bull; {recordBeingEdited.semestre}º Semestre &bull; {recordBeingEdited.cargo}
+                    {recordBeingEdited.setor} &bull; {recordBeingEdited.modulo}º Módulo &bull; {recordBeingEdited.cargo}
                   </span>
                 </div>
               </div>
@@ -355,7 +355,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                   Grau: <strong className="text-slate-900 block">{recordBeingEdited.grau}</strong>
                 </div>
                 <div>
-                  Semestre: <strong className="text-slate-900 block">{recordBeingEdited.semestre}º</strong>
+                  Módulo: <strong className="text-slate-900 block">{recordBeingEdited.modulo}º</strong>
                 </div>
               </div>
             </div>
@@ -418,7 +418,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                   </span>
                 </div>
                 <span className="font-bold text-base text-[#117d5d] tabular">
-                  {formatCurrency((Number(editQtd) || 0) * buscar_salario(editCarga, recordBeingEdited.cargo) * 6)}
+                  {formatCurrency((Number(editQtd) || 0) * buscar_salario(editCarga, recordBeingEdited.cargo) * 3)}
                 </span>
               </div>
 
@@ -539,7 +539,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                 Excluir Registro #{recordToDelete.indice}?
               </h3>
               <p className="text-xs text-slate-600 mt-1">
-                {recordToDelete.setor} &bull; {recordToDelete.semestre}º Semestre &bull; {recordToDelete.cargo} ({recordToDelete.carga_horaria})
+                {recordToDelete.setor} &bull; {recordToDelete.modulo}º Módulo &bull; {recordToDelete.cargo} ({recordToDelete.carga_horaria})
               </p>
             </div>
 
@@ -653,7 +653,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                 <tr>
                   <th className="py-3 px-4"># Índice</th>
                   <th className="py-3 px-4">Setor</th>
-                  <th className="py-3 px-4">Semestre</th>
+                  <th className="py-3 px-4">Módulo</th>
                   <th className="py-3 px-4">Cargo</th>
                   <th className="py-3 px-4 text-center">Qtd</th>
                   <th className="py-3 px-4">Carga</th>
@@ -677,7 +677,7 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 font-medium text-slate-800">
-                      {reg.semestre}º Semestre
+                      {reg.modulo}º Módulo
                     </td>
                     <td className="py-3 px-4">
                       <span className="font-semibold text-slate-800">

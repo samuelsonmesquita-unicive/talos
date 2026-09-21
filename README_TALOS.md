@@ -41,7 +41,7 @@ talos/
 
 | Módulo | Nome | Finalidade Principal | Status |
 | :--- | :--- | :--- | :--- |
-| **Hermes** | *Gestão de Demandas* | Dimensionamento acadêmico por semestre (Pedagógico e Estágio) e cálculo automático da matriz salarial de Professores e Mediadores EAD. | 🟢 **Ativo / Em Produção** |
+| **Hermes** | *Gestão de Demandas* | Dimensionamento acadêmico por módulo trimestral (Pedagógico e Estágio) e cálculo automático da matriz salarial de Professores e Mediadores EAD. | 🟢 **Ativo / Em Produção** |
 | **Plutos** | *Viabilidade & Custo* | Análise de ponto de equilíbrio (Break-even), projeção de receita líquida e viabilidade financeira. | 🟡 *Planejado* |
 | **Cronos** | *Esteira de Lançamento* | Acompanhamento do pipeline de criação de novos cursos junto aos órgãos reguladores e setores internos. | 🟡 *Planejado* |
 | **Atena** | *Inteligência de Mercado* | Mapeamento de concorrência, demanda regional e tendências de novos cursos. | 🟡 *Planejado* |

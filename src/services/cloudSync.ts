@@ -10,6 +10,7 @@ import {
 import { db } from './firebase';
 import { CursoMestre, RegistroItem, SalaryConfig } from '../types';
 import { DEFAULT_SALARY_CONFIG } from '../utils/salary';
+import { isRegistroLegado, migrarCursos, migrarRegistros } from '../utils/courseCalculations';
 
 // Coleções Firestore
 const COURSES_COLLECTION = 'cursos_unicive';
@@ -120,6 +121,46 @@ export async function syncAllToCloud(
 }
 
 /**
+ * Migração única na nuvem: substitui registros legados (semestre) por 2 módulos trimestrais
+ * e atualiza os cursos com quantidade_modulos.
+ */
+export async function migrateLegacyCloudData(): Promise<void> {
+  try {
+    const regsSnap = await getDocs(collection(db, REGISTROS_COLLECTION));
+    const legacyDocs = regsSnap.docs.filter((d) => isRegistroLegado(d.data() as RegistroItem));
+    if (legacyDocs.length > 0) {
+      const migrados = migrarRegistros(regsSnap.docs.map((d) => d.data() as RegistroItem));
+      const legacyIds = new Set(legacyDocs.map((d) => d.id));
+      const novos = migrados.filter((r) => r.id.match(/_m[12]$/) && legacyIds.has(r.id.replace(/_m[12]$/, '')));
+      // Lotes de até 400 operações (limite do Firestore: 500)
+      const ops: Array<(b: ReturnType<typeof writeBatch>) => void> = [
+        ...legacyDocs.map((d) => (b: ReturnType<typeof writeBatch>) => b.delete(d.ref)),
+        ...novos.map((r) => (b: ReturnType<typeof writeBatch>) => b.set(doc(db, REGISTROS_COLLECTION, r.id), r)),
+      ];
+      for (let i = 0; i < ops.length; i += 400) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + 400).forEach((op) => op(batch));
+        await batch.commit();
+      }
+    }
+
+    const coursesSnap = await getDocs(collection(db, COURSES_COLLECTION));
+    const legacyCourses = coursesSnap.docs.filter(
+      (d) => (d.data() as CursoMestre).quantidade_modulos === undefined
+    );
+    if (legacyCourses.length > 0) {
+      const batch = writeBatch(db);
+      migrarCursos(legacyCourses.map((d) => d.data() as CursoMestre)).forEach((c) =>
+        batch.set(doc(db, COURSES_COLLECTION, c.id), c, { merge: true })
+      );
+      await batch.commit();
+    }
+  } catch (error) {
+    console.error('Erro ao migrar dados legados na nuvem:', error);
+  }
+}
+
+/**
  * Salva a tabela salarial na nuvem
  */
 export async function saveSalaryConfigToCloud(config: SalaryConfig): Promise<void> {
@@ -137,7 +178,7 @@ export async function saveSalaryConfigToCloud(config: SalaryConfig): Promise<voi
 export async function fetchCoursesFromCloud(): Promise<CursoMestre[]> {
   try {
     const snap = await getDocs(collection(db, COURSES_COLLECTION));
-    return snap.docs.map((doc) => doc.data() as CursoMestre);
+    return migrarCursos(snap.docs.map((doc) => doc.data() as CursoMestre));
   } catch (error) {
     console.error('Erro ao buscar cursos da nuvem:', error);
     return [];
@@ -150,7 +191,7 @@ export async function fetchCoursesFromCloud(): Promise<CursoMestre[]> {
 export async function fetchRegistrosFromCloud(): Promise<RegistroItem[]> {
   try {
     const snap = await getDocs(collection(db, REGISTROS_COLLECTION));
-    return snap.docs.map((doc) => doc.data() as RegistroItem);
+    return migrarRegistros(snap.docs.map((doc) => doc.data() as RegistroItem));
   } catch (error) {
     console.error('Erro ao buscar registros da nuvem:', error);
     return [];
@@ -165,7 +206,7 @@ export function subscribeToCourses(callback: (courses: CursoMestre[]) => void): 
     collection(db, COURSES_COLLECTION),
     (snap) => {
       const courses = snap.docs.map((d) => d.data() as CursoMestre);
-      callback(courses);
+      callback(migrarCursos(courses));
     },
     (error) => {
       console.warn('Erro na sincronização em tempo real de cursos:', error);
@@ -181,7 +222,7 @@ export function subscribeToRegistros(callback: (regs: RegistroItem[]) => void): 
     collection(db, REGISTROS_COLLECTION),
     (snap) => {
       const regs = snap.docs.map((d) => d.data() as RegistroItem);
-      callback(regs);
+      callback(migrarRegistros(regs));
     },
     (error) => {
       console.warn('Erro na sincronização em tempo real de registros:', error);

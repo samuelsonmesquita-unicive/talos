@@ -5,7 +5,7 @@ import {
   getRegistrosForCourse,
 } from '../services/courseStore';
 import { formatCurrency } from '../utils/salary';
-import { agregarSemestresSetor } from '../utils/courseCalculations';
+import { agregarModulosSetor } from '../utils/courseCalculations';
 import {
   AlertTriangle,
   Printer,
@@ -56,32 +56,32 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
 
   const registros = getRegistrosForCourse(activeCourse.nome_curso, activeCourse.grau);
 
-  const pedData = agregarSemestresSetor(
+  const pedData = agregarModulosSetor(
     'Pedagógico',
-    activeCourse.quantidade_semestres,
+    activeCourse.quantidade_modulos,
     registros
   );
-  const estData = agregarSemestresSetor(
+  const estData = agregarModulosSetor(
     'Estágio',
-    activeCourse.quantidade_semestres,
+    activeCourse.quantidade_modulos,
     registros
   );
 
   // Totais de docentes e mediadores alocados por setor
-  const totalProfessoresPed = pedData.semestres.reduce(
+  const totalProfessoresPed = pedData.modulos.reduce(
     (sum, s) => sum + (s.registro_professor?.quantidade || 0),
     0
   );
-  const totalMediadoresPed = pedData.semestres.reduce(
+  const totalMediadoresPed = pedData.modulos.reduce(
     (sum, s) => sum + (s.registro_mediador?.quantidade || 0),
     0
   );
 
-  const totalProfessoresEst = estData.semestres.reduce(
+  const totalProfessoresEst = estData.modulos.reduce(
     (sum, s) => sum + (s.registro_professor?.quantidade || 0),
     0
   );
-  const totalMediadoresEst = estData.semestres.reduce(
+  const totalMediadoresEst = estData.modulos.reduce(
     (sum, s) => sum + (s.registro_mediador?.quantidade || 0),
     0
   );
@@ -141,14 +141,14 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
           <div className="space-y-1">
             <p className="font-bold text-sm text-amber-900">Aviso de Cadastro Parcial:</p>
             <p>
-              &ldquo;Este curso ainda possui cadastro incompleto — valores calculados apenas com os semestres já registrados.&rdquo;
+              &ldquo;Este curso ainda possui cadastro incompleto — valores calculados apenas com os módulos já registrados.&rdquo;
             </p>
             {(onContinueRegistration || onSelectCourseForFlow) && (
               <button
                 onClick={() => handleContinueFlow(activeCourse)}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-white bg-[#e7972a] hover:bg-[#d28117] px-3 py-1.5 rounded-md transition-colors cursor-pointer"
               >
-                Continuar preenchimento dos semestres pendentes <ChevronRight className="w-3.5 h-3.5" />
+                Continuar preenchimento dos módulos pendentes <ChevronRight className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -171,7 +171,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
               {activeCourse.grau}
             </span>
             <span className="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-700 rounded-full">
-              {activeCourse.duracao_curso} anos &bull; {activeCourse.quantidade_semestres} semestres
+              {activeCourse.duracao_curso} anos &bull; {activeCourse.quantidade_modulos} módulos
             </span>
           </div>
         </div>
@@ -199,7 +199,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                   : 'bg-amber-100 text-amber-900'
               }`}
             >
-              {pedData.semestres_salvos} / {activeCourse.quantidade_semestres} semestres
+              {pedData.modulos_salvos} / {activeCourse.quantidade_modulos} módulos
             </span>
           </div>
 
@@ -224,7 +224,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                   : 'bg-amber-100 text-amber-900'
               }`}
             >
-              {estData.semestres_salvos} / {activeCourse.quantidade_semestres} semestres
+              {estData.modulos_salvos} / {activeCourse.quantidade_modulos} módulos
             </span>
           </div>
         </div>
@@ -249,32 +249,32 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 bg-slate-50/70">
                   <tr>
-                    <th className="py-2.5 px-2">Semestre</th>
-                    <th className="py-2.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
+                    <th className="py-1.5 px-2">Módulo</th>
+                    <th className="py-1.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
                       Professores
                     </th>
-                    <th className="py-2.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
+                    <th className="py-1.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
                       Mediadores
                     </th>
-                    <th className="py-2.5 px-2 text-right">Custo Semestral</th>
-                    <th className="py-2.5 px-2 text-right">Custo Mensal</th>
+                    <th className="py-1.5 px-2 text-right">Custo do Módulo</th>
+                    <th className="py-1.5 px-2 text-right">Custo Mensal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pedData.semestres.map((s) => {
+                  {pedData.modulos.map((s) => {
                     const profQtd = s.registro_professor?.quantidade ?? 0;
                     const profCh = s.registro_professor?.carga_horaria;
                     const medQtd = s.registro_mediador?.quantidade ?? 0;
                     const medCh = s.registro_mediador?.carga_horaria;
 
                     return (
-                      <tr key={s.semestre} className={s.concluido ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
-                        <td className="py-2.5 px-2 font-semibold text-slate-900">
-                          {s.semestre}º Semestre {!s.concluido && '(Pendente)'}
+                      <tr key={s.modulo} className={s.concluido ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
+                        <td className="py-1.5 px-2 font-semibold text-slate-900">
+                          {s.modulo}º Módulo {!s.concluido && '(Pendente)'}
                         </td>
 
                         {/* Coluna Professores com Quantidade */}
-                        <td className="py-2.5 px-2 text-center">
+                        <td className="py-1.5 px-2 text-center">
                           {s.professor_salvo ? (
                             <div className="inline-flex items-center gap-1 bg-emerald-50 text-[#117d5d] border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-bold">
                               <span>{profQtd}</span>
@@ -286,7 +286,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                         </td>
 
                         {/* Coluna Mediadores com Quantidade */}
-                        <td className="py-2.5 px-2 text-center">
+                        <td className="py-1.5 px-2 text-center">
                           {s.mediador_salvo ? (
                             <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-bold">
                               <span>{medQtd}</span>
@@ -297,11 +297,11 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                           )}
                         </td>
 
-                        <td className="py-2.5 px-2 text-right font-bold text-slate-900 tabular">
-                          {formatCurrency(s.custo_semestral)}
+                        <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular">
+                          {formatCurrency(s.custo_modulo)}
                         </td>
-                        <td className="py-2.5 px-2 text-right text-slate-600 tabular">
-                          {formatCurrency(s.custo_mensal_semestre)}
+                        <td className="py-1.5 px-2 text-right text-slate-600 tabular">
+                          {formatCurrency(s.custo_mensal_modulo)}
                         </td>
                       </tr>
                     );
@@ -358,32 +358,32 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 bg-slate-50/70">
                   <tr>
-                    <th className="py-2.5 px-2">Semestre</th>
-                    <th className="py-2.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
+                    <th className="py-1.5 px-2">Módulo</th>
+                    <th className="py-1.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
                       Professores
                     </th>
-                    <th className="py-2.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
+                    <th className="py-1.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
                       Mediadores
                     </th>
-                    <th className="py-2.5 px-2 text-right">Custo Semestral</th>
-                    <th className="py-2.5 px-2 text-right">Custo Mensal</th>
+                    <th className="py-1.5 px-2 text-right">Custo do Módulo</th>
+                    <th className="py-1.5 px-2 text-right">Custo Mensal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {estData.semestres.map((s) => {
+                  {estData.modulos.map((s) => {
                     const profQtd = s.registro_professor?.quantidade ?? 0;
                     const profCh = s.registro_professor?.carga_horaria;
                     const medQtd = s.registro_mediador?.quantidade ?? 0;
                     const medCh = s.registro_mediador?.carga_horaria;
 
                     return (
-                      <tr key={s.semestre} className={s.concluido ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
-                        <td className="py-2.5 px-2 font-semibold text-slate-900">
-                          {s.semestre}º Semestre {!s.concluido && '(Pendente)'}
+                      <tr key={s.modulo} className={s.concluido ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
+                        <td className="py-1.5 px-2 font-semibold text-slate-900">
+                          {s.modulo}º Módulo {!s.concluido && '(Pendente)'}
                         </td>
 
                         {/* Coluna Professores com Quantidade */}
-                        <td className="py-2.5 px-2 text-center">
+                        <td className="py-1.5 px-2 text-center">
                           {s.professor_salvo ? (
                             <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold">
                               <span>{profQtd}</span>
@@ -395,7 +395,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                         </td>
 
                         {/* Coluna Mediadores com Quantidade */}
-                        <td className="py-2.5 px-2 text-center">
+                        <td className="py-1.5 px-2 text-center">
                           {s.mediador_salvo ? (
                             <div className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[11px] font-bold">
                               <span>{medQtd}</span>
@@ -406,11 +406,11 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                           )}
                         </td>
 
-                        <td className="py-2.5 px-2 text-right font-bold text-slate-900 tabular">
-                          {formatCurrency(s.custo_semestral)}
+                        <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular">
+                          {formatCurrency(s.custo_modulo)}
                         </td>
-                        <td className="py-2.5 px-2 text-right text-slate-600 tabular">
-                          {formatCurrency(s.custo_mensal_semestre)}
+                        <td className="py-1.5 px-2 text-right text-slate-600 tabular">
+                          {formatCurrency(s.custo_mensal_modulo)}
                         </td>
                       </tr>
                     );

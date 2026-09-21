@@ -5,12 +5,18 @@ import {
   Grau,
   RegistroItem,
   SectorStatus,
-  SemestreAgregado,
+  ModuloAgregado,
   Setor,
   SetorAgregado,
   StatusGeral,
 } from '../types';
 import { buscar_salario } from './salary';
+
+/** Cada módulo dura 3 meses (trimestral) */
+export const MESES_POR_MODULO = 3;
+
+/** Módulos por ano */
+export const MODULOS_POR_ANO = 4;
 
 /**
  * Normaliza a chave do curso: nome_curso + grau (seção 3)
@@ -21,7 +27,7 @@ export function normalizeCourseKey(nome_curso: string, grau: Grau): string {
 
 /**
  * Calcula o custo individual de um registro (seção 6.2 - passo 1)
- * custo = quantidade * salario * 6
+ * custo = quantidade * salario * 3 (módulo trimestral)
  */
 export function calcularCustoRegistro(
   quantidade: number,
@@ -29,34 +35,34 @@ export function calcularCustoRegistro(
   cargo: Cargo = 'Professor'
 ): { salario: number; custo: number } {
   const salario = buscar_salario(carga_horaria, cargo);
-  const custo = quantidade * salario * 6;
+  const custo = quantidade * salario * 3 (módulo trimestral);
   return { salario, custo };
 }
 
 /**
- * Agrega os semestres de um setor específico
+ * Agrega os módulos de um setor específico
  */
-export function agregarSemestresSetor(
+export function agregarModulosSetor(
   setor: Setor,
-  quantidade_semestres: number,
+  quantidade_modulos: number,
   registros: RegistroItem[]
 ): {
-  semestres: SemestreAgregado[];
-  semestres_salvos: number;
+  modulos: ModuloAgregado[];
+  modulos_salvos: number;
   custo_total: number;
   custo_mensal_medio: number;
   status: SectorStatus;
 } {
   const setorRegistros = registros.filter((r) => r.setor === setor);
-  const semestres: SemestreAgregado[] = [];
+  const modulos: ModuloAgregado[] = [];
 
-  let semestresSalvosContagem = 0;
-  let somaCustoSemestral = 0;
+  let modulosSalvosContagem = 0;
+  let somaCustoModulo = 0;
   let somaCustoMensal = 0;
 
-  for (let s = 1; s <= quantidade_semestres; s++) {
-    const regProf = setorRegistros.find((r) => r.semestre === s && r.cargo === 'Professor');
-    const regMed = setorRegistros.find((r) => r.semestre === s && r.cargo === 'Mediador');
+  for (let s = 1; s <= quantidade_modulos; s++) {
+    const regProf = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Professor');
+    const regMed = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Mediador');
 
     const profSalvo = Boolean(regProf);
     const medSalvo = Boolean(regMed);
@@ -64,22 +70,22 @@ export function agregarSemestresSetor(
 
     const custoProf = regProf ? regProf.custo : 0;
     const custoMed = regMed ? regMed.custo : 0;
-    const custoSemestral = custoProf + custoMed;
-    const custoMensal = custoSemestral / 6;
+    const custoModulo = custoProf + custoMed;
+    const custoMensal = custoModulo / MESES_POR_MODULO;
 
     if (concluido) {
-      semestresSalvosContagem++;
+      modulosSalvosContagem++;
     }
 
-    somaCustoSemestral += custoSemestral;
+    somaCustoModulo += custoModulo;
     somaCustoMensal += custoMensal;
 
-    semestres.push({
-      semestre: s,
+    modulos.push({
+      modulo: s,
       custo_professor: custoProf,
       custo_mediador: custoMed,
-      custo_semestral: custoSemestral,
-      custo_mensal_semestre: custoMensal,
+      custo_modulo: custoModulo,
+      custo_mensal_modulo: custoMensal,
       professor_salvo: profSalvo,
       mediador_salvo: medSalvo,
       concluido,
@@ -90,27 +96,27 @@ export function agregarSemestresSetor(
 
   // Status do setor segundo Seção 3.1:
   // 0 -> não iniciado
-  // 1 a quantidade_semestres - 1 -> incompleto
-  // = quantidade_semestres -> completo
+  // 1 a quantidade_modulos - 1 -> incompleto
+  // = quantidade_modulos -> completo
   let status: SectorStatus = 'não iniciado';
-  if (semestresSalvosContagem === 0) {
-    // Atenção: se tiver professor salvo mas não mediador, semestresSalvosContagem é 0 mas há dados pendentes
+  if (modulosSalvosContagem === 0) {
+    // Atenção: se tiver professor salvo mas não mediador, modulosSalvosContagem é 0 mas há dados pendentes
     const temAlgumRegistro = setorRegistros.length > 0;
     status = temAlgumRegistro ? 'incompleto' : 'não iniciado';
-  } else if (semestresSalvosContagem < quantidade_semestres) {
+  } else if (modulosSalvosContagem < quantidade_modulos) {
     status = 'incompleto';
   } else {
     status = 'completo';
   }
 
-  // Custo mensal médio do setor = soma do custo mensal dos semestres ÷ quantidade_semestres (Seção 6.2 e 15)
+  // Custo mensal médio do setor = soma do custo mensal dos módulos ÷ quantidade_modulos (Seção 6.2 e 15)
   const custo_mensal_medio =
-    quantidade_semestres > 0 ? somaCustoMensal / quantidade_semestres : 0;
+    quantidade_modulos > 0 ? somaCustoMensal / quantidade_modulos : 0;
 
   return {
-    semestres,
-    semestres_salvos: semestresSalvosContagem,
-    custo_total: somaCustoSemestral,
+    modulos,
+    modulos_salvos: modulosSalvosContagem,
+    custo_total: somaCustoModulo,
     custo_mensal_medio,
     status,
   };
@@ -118,7 +124,7 @@ export function agregarSemestresSetor(
 
 /**
  * Realiza o recálculo em cascata completo do curso (seção 6.2)
- * Atualiza registros -> semestres -> setores -> curso
+ * Atualiza registros -> módulos -> setores -> curso
  */
 export function recalcularCurso(
   cursoAtual: CursoMestre,
@@ -128,28 +134,28 @@ export function recalcularCurso(
   setorPedagogico: SetorAgregado;
   setorEstagio: SetorAgregado;
 } {
-  const qtdSemestres = cursoAtual.quantidade_semestres;
+  const qtdModulos = cursoAtual.quantidade_modulos;
 
   // 1 e 2 e 3. Agrega Pedagógico
-  const pedData = agregarSemestresSetor('Pedagógico', qtdSemestres, registros);
+  const pedData = agregarModulosSetor('Pedagógico', qtdModulos, registros);
   const setorPedagogico: SetorAgregado = {
     setor: 'Pedagógico',
     status: pedData.status,
-    semestres_salvos: pedData.semestres_salvos,
+    modulos_salvos: pedData.modulos_salvos,
     custo_total: pedData.custo_total,
     custo_mensal_medio: pedData.custo_mensal_medio,
-    semestres: pedData.semestres,
+    modulos: pedData.modulos,
   };
 
   // 1 e 2 e 3. Agrega Estágio
-  const estData = agregarSemestresSetor('Estágio', qtdSemestres, registros);
+  const estData = agregarModulosSetor('Estágio', qtdModulos, registros);
   const setorEstagio: SetorAgregado = {
     setor: 'Estágio',
     status: estData.status,
-    semestres_salvos: estData.semestres_salvos,
+    modulos_salvos: estData.modulos_salvos,
     custo_total: estData.custo_total,
     custo_mensal_medio: estData.custo_mensal_medio,
-    semestres: estData.semestres,
+    modulos: estData.modulos,
   };
 
   // 4. Curso (ambos os setores)
@@ -185,4 +191,54 @@ export function recalcularCurso(
     setorPedagogico,
     setorEstagio,
   };
+}
+
+/**
+ * MIGRAÇÃO (semestre -> módulo trimestral)
+ * Cada semestre legado vira 2 módulos com a mesma demanda: o custo total é preservado
+ * (qtd * salário * 6 = 2 × qtd * salário * 3).
+ */
+type LegacyRegistro = Partial<RegistroItem> & { semestre?: number };
+type LegacyCurso = Partial<CursoMestre> & { quantidade_semestres?: number };
+
+export function isRegistroLegado(r: LegacyRegistro): boolean {
+  return r.modulo === undefined && r.semestre !== undefined;
+}
+
+export function migrarRegistros(registros: LegacyRegistro[]): RegistroItem[] {
+  const nativos = registros.filter((r) => !isRegistroLegado(r)) as RegistroItem[];
+  const ids = new Set(nativos.map((r) => r.id));
+  const resultado = [...nativos];
+  let maxIndice = nativos.reduce((m, r) => Math.max(m, r.indice || 0), 0);
+
+  registros
+    .filter(isRegistroLegado)
+    .sort((a, b) => (a.indice || 0) - (b.indice || 0))
+    .forEach((r) => {
+      const { semestre, ...resto } = r;
+      [1, 2].forEach((parte) => {
+        const id = `${r.id}_m${parte}`;
+        if (ids.has(id)) return;
+        ids.add(id);
+        const { custo } = calcularCustoRegistro(r.quantidade!, r.carga_horaria!, r.cargo!);
+        resultado.push({
+          ...(resto as RegistroItem),
+          id,
+          indice: ++maxIndice,
+          modulo: (semestre! - 1) * 2 + parte,
+          custo,
+        });
+      });
+    });
+
+  return resultado;
+}
+
+export function migrarCursos(cursos: LegacyCurso[]): CursoMestre[] {
+  return cursos.map((c) => {
+    if (c.quantidade_modulos !== undefined) return c as CursoMestre;
+    const { quantidade_semestres, ...resto } = c;
+    const semestres = quantidade_semestres ?? Math.round((c.duracao_curso || 0) * 2);
+    return { ...(resto as CursoMestre), quantidade_modulos: semestres * 2 };
+  });
 }

@@ -52,7 +52,7 @@ $$ \text{Custo Mensal} = \text{Salário Base} \times \left(1 + \text{Alíquota T
 - **Acréscimo Total da Folha:** $+***\%$ sobre o salário base (fator $\approx ***$).
 
 O custo semestral de cada demanda é obtido por:
-$$ \text{Custo Semestre} = \text{Quantidade} \times \text{Custo Mensal c/ Encargos} \times 6\text{ meses} $$
+$$ \text{Custo Módulo} = \text{Quantidade} \times \text{Custo Mensal c/ Encargos} \times 3\text{ meses} $$
 
 ---
 

@@ -209,7 +209,7 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
       'Curso',
       'Grau',
       'Duração (Anos)',
-      'Semestres',
+      'Módulos',
       'Mensal Pedagógico (R$)',
       'Mensal Estágio (R$)',
       'Custo Mensal Total (R$)',
@@ -221,7 +221,7 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
       `"${c.nome_curso.replace(/"/g, '""')}"`,
       `"${c.grau}"`,
       c.duracao_curso.toString().replace('.', ','),
-      c.quantidade_semestres,
+      c.quantidade_modulos,
       (c.custo_mensal_medio_pedagogico || 0).toFixed(2).replace('.', ','),
       (c.custo_mensal_medio_estagio || 0).toFixed(2).replace('.', ','),
       (c.custo_mensal_medio_curso || 0).toFixed(2).replace('.', ','),
@@ -566,7 +566,7 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-600 tabular">
-                        {c.duracao_curso} anos ({c.quantidade_semestres}S)
+                        {c.duracao_curso} anos ({c.quantidade_modulos}M)
                       </td>
 
                       <td className="py-3.5 px-4">

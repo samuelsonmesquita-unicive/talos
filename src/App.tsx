@@ -300,7 +300,7 @@ export default function App() {
                   <span className="font-semibold text-slate-700 block mb-0.5">
                     Segurança dos seus dados:
                   </span>
-                  Todos os semestres e etapas já salvos foram guardados com segurança e você poderá retomar este cadastro a qualquer momento.
+                  Todos os módulos e etapas já salvos foram guardados com segurança e você poderá retomar este cadastro a qualquer momento.
                 </div>
               </div>
             </div>

@@ -1,6 +1,9 @@
 import { CargaHoraria, CursoMestre, Grau, RegistroItem, Setor } from '../types';
 import {
   calcularCustoRegistro,
+  migrarCursos,
+  migrarRegistros,
+  MODULOS_POR_ANO,
   normalizeCourseKey,
   recalcularCurso,
 } from '../utils/courseCalculations';
@@ -13,6 +16,7 @@ import {
   syncAllToCloud,
   fetchCoursesFromCloud,
   fetchRegistrosFromCloud,
+  migrateLegacyCloudData,
 } from './cloudSync';
 
 const COURSES_STORAGE_KEY = 'unicive_demandas_cursos_v2';
@@ -23,11 +27,11 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
   const agora = new Date().toISOString();
   let indiceCounter = 1;
 
-  // 1. Curso Completo: Administração (Bacharel - 4 anos = 8 semestres)
+  // 1. Curso Completo: Administração (Bacharel - 4 anos = 16 módulos)
   const admKey = normalizeCourseKey('Administração', 'Bacharel');
   const admRegistros: RegistroItem[] = [];
 
-  for (let s = 1; s <= 8; s++) {
+  for (let s = 1; s <= 16; s++) {
     // Pedagógico
     const { salario: sProfP, custo: cProfP } = calcularCustoRegistro(1, '20h', 'Professor');
     admRegistros.push({
@@ -36,7 +40,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Administração',
       grau: 'Bacharel',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Professor',
       quantidade: 1,
       carga_horaria: '20h',
@@ -51,7 +55,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Administração',
       grau: 'Bacharel',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Mediador',
       quantidade: 1,
       carga_horaria: '10h',
@@ -68,7 +72,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Administração',
       grau: 'Bacharel',
       setor: 'Estágio',
-      semestre: s,
+      modulo: s,
       cargo: 'Professor',
       quantidade: 1,
       carga_horaria: '10h',
@@ -83,7 +87,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Administração',
       grau: 'Bacharel',
       setor: 'Estágio',
-      semestre: s,
+      modulo: s,
       cargo: 'Mediador',
       quantidade: 1,
       carga_horaria: '10h',
@@ -98,7 +102,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
     nome_curso: 'Administração',
     grau: 'Bacharel',
     duracao_curso: 4.0,
-    quantidade_semestres: 8,
+    quantidade_modulos: 16,
     status_pedagogico: 'completo',
     status_estagio: 'completo',
     status_geral: 'completo',
@@ -117,7 +121,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
   // 2. Curso Incompleto: ADS
   const adsKey = normalizeCourseKey('Análise e Desenvolvimento de Sistemas', 'Tecnólogo');
   const adsRegistros: RegistroItem[] = [];
-  for (let s = 1; s <= 2; s++) {
+  for (let s = 1; s <= 4; s++) {
     const { salario: sP, custo: cP } = calcularCustoRegistro(1, '20h', 'Professor');
     adsRegistros.push({
       id: `${adsKey}_ped_${s}_prof`,
@@ -125,7 +129,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Análise e Desenvolvimento de Sistemas',
       grau: 'Tecnólogo',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Professor',
       quantidade: 1,
       carga_horaria: '20h',
@@ -140,7 +144,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Análise e Desenvolvimento de Sistemas',
       grau: 'Tecnólogo',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Mediador',
       quantidade: 1,
       carga_horaria: '10h',
@@ -155,7 +159,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
     nome_curso: 'Análise e Desenvolvimento de Sistemas',
     grau: 'Tecnólogo',
     duracao_curso: 2.5,
-    quantidade_semestres: 5,
+    quantidade_modulos: 10,
     status_pedagogico: 'incompleto',
     status_estagio: 'não iniciado',
     status_geral: 'parcial',
@@ -174,7 +178,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
   // 3. Curso Pedagogia
   const pedKey = normalizeCourseKey('Pedagogia', 'Bacharel');
   const pedRegistros: RegistroItem[] = [];
-  for (let s = 1; s <= 8; s++) {
+  for (let s = 1; s <= 16; s++) {
     const { salario: sP, custo: cP } = calcularCustoRegistro(1, '20h', 'Professor');
     pedRegistros.push({
       id: `${pedKey}_ped_${s}_prof`,
@@ -182,7 +186,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Pedagogia',
       grau: 'Bacharel',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Professor',
       quantidade: 1,
       carga_horaria: '20h',
@@ -197,7 +201,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
       nome_curso: 'Pedagogia',
       grau: 'Bacharel',
       setor: 'Pedagógico',
-      semestre: s,
+      modulo: s,
       cargo: 'Mediador',
       quantidade: 1,
       carga_horaria: '10h',
@@ -212,7 +216,7 @@ function getInitialData(): { courses: CursoMestre[]; registros: RegistroItem[] }
     nome_curso: 'Pedagogia',
     grau: 'Bacharel',
     duracao_curso: 4.0,
-    quantidade_semestres: 8,
+    quantidade_modulos: 16,
     status_pedagogico: 'completo',
     status_estagio: 'não iniciado',
     status_geral: 'parcial',
@@ -238,7 +242,7 @@ export function getAllCourses(): CursoMestre[] {
   try {
     const raw = localStorage.getItem(COURSES_STORAGE_KEY);
     if (raw !== null) {
-      return JSON.parse(raw);
+      return migrarCursos(JSON.parse(raw));
     }
   } catch (e) {
     console.error('Erro ao ler cursos do localStorage', e);
@@ -253,7 +257,7 @@ export function getAllRegistros(): RegistroItem[] {
   try {
     const raw = localStorage.getItem(REGISTROS_STORAGE_KEY);
     if (raw !== null) {
-      return JSON.parse(raw);
+      return migrarRegistros(JSON.parse(raw));
     }
   } catch (e) {
     console.error('Erro ao ler registros do localStorage', e);
@@ -266,7 +270,7 @@ export function getAllRegistros(): RegistroItem[] {
 
 export function saveAllCourses(courses: CursoMestre[]): void {
   try {
-    localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(courses));
+    localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(migrarCursos(courses)));
   } catch (e) {
     console.error('Erro ao salvar cursos', e);
   }
@@ -274,7 +278,7 @@ export function saveAllCourses(courses: CursoMestre[]): void {
 
 export function saveAllRegistros(registros: RegistroItem[]): void {
   try {
-    localStorage.setItem(REGISTROS_STORAGE_KEY, JSON.stringify(registros));
+    localStorage.setItem(REGISTROS_STORAGE_KEY, JSON.stringify(migrarRegistros(registros)));
   } catch (e) {
     console.error('Erro ao salvar registros', e);
   }
@@ -285,6 +289,8 @@ export function saveAllRegistros(registros: RegistroItem[]): void {
  */
 export async function initializeCloudDatabase(): Promise<void> {
   try {
+    // Converte dados legados (semestres) da nuvem em módulos trimestrais
+    await migrateLegacyCloudData();
     const cloudCourses = await fetchCoursesFromCloud();
     const cloudRegistros = await fetchRegistrosFromCloud();
 
@@ -301,7 +307,7 @@ export async function initializeCloudDatabase(): Promise<void> {
 
     // Migração/Atualização automática para a nova regra de encargos trabalhistas (+***%)
     const RULES_VERSION_KEY = 'unicive_rules_version';
-    const CURRENT_RULES_VERSION = 'v2_encargos_folha_***';
+    const CURRENT_RULES_VERSION = 'v3_modulos_trimestrais';
     if (localStorage.getItem(RULES_VERSION_KEY) !== CURRENT_RULES_VERSION) {
       recalcularTodosOsCursos();
       localStorage.setItem(RULES_VERSION_KEY, CURRENT_RULES_VERSION);
@@ -325,7 +331,7 @@ export function getRegistrosForCourse(nome_curso: string, grau: Grau): RegistroI
   );
   return filtered.sort((a, b) => {
     if (a.setor !== b.setor) return a.setor.localeCompare(b.setor);
-    if (a.semestre !== b.semestre) return a.semestre - b.semestre;
+    if (a.modulo !== b.modulo) return a.modulo - b.modulo;
     if (a.cargo !== b.cargo) return a.cargo === 'Professor' ? -1 : 1;
     return a.indice - b.indice;
   });
@@ -346,13 +352,13 @@ export function upsertCourseMaster(
   const agora = new Date().toISOString();
 
   if (!existing) {
-    const qtdSemestres = Math.round(duracao_digitada * 2);
+    const qtdModulos = Math.round(duracao_digitada * MODULOS_POR_ANO);
     const novo: CursoMestre = {
       id: key,
       nome_curso: nome_curso.trim(),
       grau,
       duracao_curso: duracao_digitada,
-      quantidade_semestres: qtdSemestres,
+      quantidade_modulos: qtdModulos,
       status_pedagogico: 'não iniciado',
       status_estagio: 'não iniciado',
       status_geral: 'parcial',
@@ -376,11 +382,11 @@ export function upsertCourseMaster(
     existing.status_estagio === 'não iniciado';
 
   if (ambosNaoIniciados) {
-    const qtdSemestres = Math.round(duracao_digitada * 2);
+    const qtdModulos = Math.round(duracao_digitada * MODULOS_POR_ANO);
     const atualizado: CursoMestre = {
       ...existing,
       duracao_curso: duracao_digitada,
-      quantidade_semestres: qtdSemestres,
+      quantidade_modulos: qtdModulos,
       atualizado_em: agora,
     };
     saveAllCourses(courses.map((c) => (c.id === key ? atualizado : c)));
@@ -401,7 +407,7 @@ export function saveOrUpdateRegistro(
   nome_curso: string,
   grau: Grau,
   setor: Setor,
-  semestre: number,
+  modulo: number,
   cargo: 'Professor' | 'Mediador',
   quantidade: number,
   carga_horaria: CargaHoraria
@@ -420,7 +426,7 @@ export function saveOrUpdateRegistro(
     (r) =>
       normalizeCourseKey(r.nome_curso, r.grau) === key &&
       r.setor === setor &&
-      r.semestre === semestre &&
+      r.modulo === modulo &&
       r.cargo === cargo
   );
 
@@ -441,12 +447,12 @@ export function saveOrUpdateRegistro(
   } else {
     const maxIndice = allRegistros.reduce((max, r) => Math.max(max, r.indice || 0), 0);
     updatedRegistro = {
-      id: `${key}_${setor.toLowerCase()}_${semestre}_${cargo.toLowerCase()}_${Date.now()}`,
+      id: `${key}_${setor.toLowerCase()}_${modulo}_${cargo.toLowerCase()}_${Date.now()}`,
       indice: maxIndice + 1,
       nome_curso: course.nome_curso,
       grau: course.grau,
       setor,
-      semestre,
+      modulo,
       cargo,
       quantidade,
       carga_horaria,
@@ -665,20 +671,20 @@ export function deleteCourse(nome_curso: string, grau: Grau): void {
 }
 
 /**
- * Retorna o próximo semestre pendente
+ * Retorna o próximo módulo pendente
  */
-export function getNextPendingSemester(
+export function getNextPendingModule(
   nome_curso: string,
   grau: Grau,
   setor: Setor,
-  totalSemestres: number
+  totalModulos: number
 ): number {
   const registros = getRegistrosForCourse(nome_curso, grau).filter(
     (r) => r.setor === setor
   );
-  for (let s = 1; s <= totalSemestres; s++) {
-    const hasProf = registros.some((r) => r.semestre === s && r.cargo === 'Professor');
-    const hasMed = registros.some((r) => r.semestre === s && r.cargo === 'Mediador');
+  for (let s = 1; s <= totalModulos; s++) {
+    const hasProf = registros.some((r) => r.modulo === s && r.cargo === 'Professor');
+    const hasMed = registros.some((r) => r.modulo === s && r.cargo === 'Mediador');
     if (!hasProf || !hasMed) {
       return s;
     }

@@ -81,7 +81,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
   const [incompletedSectorName, setIncompletedSectorName] = useState<Setor>('Pedagógico');
 
   const duracaoParsed = parseDurationInput(duracaoInput);
-  const semestresCalculados = duracaoParsed ? Math.round(duracaoParsed * 2) : null;
+  const modulosCalculados = duracaoParsed ? Math.round(duracaoParsed * 4) : null;
 
   const handleVerificarEProsseguir = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +214,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
               <Layers className="w-3.5 h-3.5 text-[#e7972a]" /> Setor Pedagógico &bull; Estágio
             </span>
             <span className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[#7ebd73]" /> Semestre = 6 Meses
+              <Clock className="w-3.5 h-3.5 text-[#7ebd73]" /> Módulo = 3 Meses (Trimestral)
             </span>
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#e7972a]" /> Recálculo Automático
@@ -305,7 +305,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                 Duração do Curso (em anos)
               </label>
               <span className="text-[11px] text-slate-500 font-medium">
-                Regra: 1 semestre = 6 meses
+                Regra: 1 módulo = 3 meses (trimestral)
               </span>
             </div>
 
@@ -322,11 +322,11 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             {/* Caixa explicativa de cálculo */}
             <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
               <span className="text-slate-600 font-medium">
-                Cálculo: <strong className="text-slate-900">quantidade_semestres = duracao_curso &times; 2</strong>
+                Cálculo: <strong className="text-slate-900">quantidade_modulos = duracao_curso &times; 4</strong>
               </span>
               <span className="px-2 py-0.5 rounded font-bold text-xs bg-emerald-100 text-[#117d5d] border border-emerald-300">
-                {semestresCalculados !== null
-                  ? `${semestresCalculados} semestres (${semestresCalculados * 6} meses)`
+                {modulosCalculados !== null
+                  ? `${modulosCalculados} módulos (${modulosCalculados * 3} meses)`
                   : 'Aguardando duração'}
               </span>
             </div>
@@ -377,7 +377,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
               </h3>
             </div>
             <span className="badge-unicive-green">
-              {activeCourse.duracao_curso} anos &bull; {activeCourse.quantidade_semestres} semestres
+              {activeCourse.duracao_curso} anos &bull; {activeCourse.quantidade_modulos} módulos
             </span>
           </div>
 
@@ -394,7 +394,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   <span>Cadastro Concluído</span>
                 </div>
                 <p>
-                  Todos os semestres dos setores Pedagógico e Estágio já foram devidamente preenchidos e salvos.
+                  Todos os módulos dos setores Pedagógico e Estágio já foram devidamente preenchidos e salvos.
                 </p>
               </div>
 
@@ -426,7 +426,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   Há Registros Anteriores do Setor Pedagógico
                 </div>
                 <p>
-                  O setor Pedagógico está completo ({activeCourse.quantidade_semestres} semestres). O setor de Estágio ainda não foi iniciado.
+                  O setor Pedagógico está completo ({activeCourse.quantidade_modulos} módulos). O setor de Estágio ainda não foi iniciado.
                 </p>
               </div>
 
@@ -459,7 +459,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   Há Registros Anteriores do Setor Estágio
                 </div>
                 <p>
-                  O setor de Estágio está completo ({activeCourse.quantidade_semestres} semestres). O setor Pedagógico ainda não foi iniciado.
+                  O setor de Estágio está completo ({activeCourse.quantidade_modulos} módulos). O setor Pedagógico ainda não foi iniciado.
                 </p>
               </div>
 
@@ -492,7 +492,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   Cadastro de {incompletedSectorName} incompleto. Deseja continuar de onde parou?
                 </div>
                 <p>
-                  Selecione <strong>Sim</strong> para retomar a partir do próximo semestre pendente, ou <strong>Não</strong> para reiniciar e redefinir os dados deste setor.
+                  Selecione <strong>Sim</strong> para retomar a partir do próximo módulo pendente, ou <strong>Não</strong> para reiniciar e redefinir os dados deste setor.
                 </p>
               </div>
 
@@ -523,7 +523,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             <div className="space-y-4">
               <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950">
                 <div className="font-bold text-sm text-amber-900 mb-1">
-                  Ambos os setores possuem semestres pendentes
+                  Ambos os setores possuem módulos pendentes
                 </div>
                 <p>
                   Escolha por qual setor deseja prosseguir o preenchimento:

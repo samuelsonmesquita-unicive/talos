@@ -1,39 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  CursoMestre,
-  Setor,
-  CargaHoraria,
-  Cargo,
-  RegistroItem,
-} from '../types';
+import { CursoMestre, Setor, CargaHoraria, RegistroItem } from '../types';
 import {
   saveOrUpdateRegistro,
   getRegistrosForCourse,
-  getNextPendingSemester,
+  getNextPendingModule,
 } from '../services/courseStore';
-import {
-  buscar_salario,
-  buscar_salario_base,
-  buscar_detalhamento_salario,
-  formatCurrency,
-} from '../utils/salary';
+import { buscar_salario, formatCurrency } from '../utils/salary';
+import { MESES_POR_MODULO, MODULOS_POR_ANO } from '../utils/courseCalculations';
 import {
   CheckCircle2,
   ChevronRight,
-  ChevronLeft,
   Save,
   FileCheck,
   Search,
   ArrowLeft,
-  ArrowRight,
   GraduationCap,
   Sparkles,
   BookOpen,
   Lock,
-  Unlock,
   AlertCircle,
-  HelpCircle,
+  Copy,
+  ListChecks,
 } from 'lucide-react';
+
+const CARGAS: CargaHoraria[] = ['10h', '20h', '40h'];
+const MAX_QTD = 10;
 
 interface DemandRegistrationFlowProps {
   // Supports both curso and cursoInicial
@@ -51,28 +42,100 @@ interface DemandRegistrationFlowProps {
   onGoToReport?: (curso: CursoMestre) => void;
 }
 
+/* ───────────── Campo compacto de um cargo (quantidade + carga horária) ───────────── */
+
+interface RoleFieldsProps {
+  cargo: 'Professor' | 'Mediador';
+  icon: React.ReactNode;
+  qtd: string;
+  ch: CargaHoraria | null;
+  onQtd: (v: string) => void;
+  onCh: (v: CargaHoraria) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  onEnter: () => void;
+}
+
+const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, onCh, inputRef, onEnter }) => {
+  const num = Number(qtd);
+  const qtdOk = qtd.trim() !== '' && Number.isInteger(num) && num >= 0 && num <= MAX_QTD;
+  const chLiberada = qtdOk && num > 0;
+  const custo = qtdOk && num > 0 && ch ? num * buscar_salario(ch, cargo) * MESES_POR_MODULO : 0;
+  const prefix = cargo.slice(0, 4).toLowerCase();
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+          {icon}
+          {cargo}
+        </span>
+        <span className="text-xs font-bold text-slate-900 tabular">
+          {qtdOk ? formatCurrency(custo) : '—'}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          id={`input-quantidade-${cargo.toLowerCase()}`}
+          type="number"
+          min={0}
+          max={MAX_QTD}
+          inputMode="numeric"
+          aria-label={`Quantidade de ${cargo}`}
+          value={qtd}
+          onChange={(e) => onQtd(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onEnter();
+            }
+          }}
+          placeholder="Qtd"
+          className="w-16 shrink-0 px-2 py-2 rounded-lg border border-slate-300 text-sm font-bold text-center tabular focus:outline-none focus:ring-2 focus:ring-[#239371]"
+        />
+        <div className="grid grid-cols-3 gap-1.5 flex-1">
+          {CARGAS.map((c) => {
+            const selected = ch === c && chLiberada;
+            return (
+              <button
+                key={c}
+                type="button"
+                id={`btn-ch-${prefix}-${c}`}
+                disabled={!chLiberada}
+                onClick={() => onCh(c)}
+                className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                  !chLiberada
+                    ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                    : selected
+                    ? 'bg-[#239371] text-white border-[#239371] shadow-xs cursor-pointer'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer'
+                }`}
+              >
+                {c}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className="mt-1.5 text-[11px] text-slate-500 leading-tight">
+        {!qtdOk
+          ? `Qtd. de 0 a ${MAX_QTD} (0 = sem ${cargo.toLowerCase()})`
+          : num === 0
+          ? 'Sem ' + cargo.toLowerCase() + ' neste módulo'
+          : !ch
+          ? 'Escolha a carga horária semanal'
+          : `${num} × ${formatCurrency(buscar_salario(ch, cargo))} × ${MESES_POR_MODULO} meses`}
+      </p>
+    </div>
+  );
+};
+
+/* ───────────── Fluxo principal ───────────── */
+
 export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (props) => {
-  const {
-    curso: cursoProp,
-    cursoInicial,
-    initialSetor = 'Pedagógico',
-    setorInicial,
-    isRetomada = false,
-    onConcludeSector,
-    onConclude,
-    onCancel,
-    onGoToConsult,
-    onGoToReport,
-  } = props;
-
-  // Resolve active course defensively from either prop
-  const curso = cursoProp || cursoInicial;
-
-  const resolvedInitialSetor: Setor = setorInicial || initialSetor || 'Pedagógico';
-  const handleConclude = (toastMsg?: string) => {
-    if (onConcludeSector) onConcludeSector(toastMsg);
-    else if (onConclude) onConclude(toastMsg);
-  };
+  const curso = props.curso || props.cursoInicial;
 
   if (!curso) {
     return (
@@ -80,360 +143,219 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
         <p className="text-sm font-semibold text-slate-700">
           Nenhum curso foi selecionado para preenchimento.
         </p>
-        <button
-          onClick={onCancel}
-          className="btn-unicive-primary text-xs py-2 px-4"
-        >
+        <button onClick={props.onCancel} className="btn-unicive-primary text-xs py-2 px-4">
           Voltar ao Início
         </button>
       </div>
     );
   }
 
+  return <FlowContent {...props} curso={curso} />;
+};
+
+const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }> = ({
+  curso,
+  initialSetor = 'Pedagógico',
+  setorInicial,
+  onConcludeSector,
+  onConclude,
+  onCancel,
+  onGoToConsult,
+  onGoToReport,
+}) => {
+  const total = curso.quantidade_modulos;
+  const resolvedInitialSetor: Setor = setorInicial || initialSetor;
+
+  const handleConclude = (toastMsg?: string) => {
+    if (onConcludeSector) onConcludeSector(toastMsg);
+    else if (onConclude) onConclude(toastMsg);
+  };
+
   const [currentSetor, setCurrentSetor] = useState<Setor>(resolvedInitialSetor);
 
-  // Rastreia qual setor foi preenchido PRIMEIRO para bloquear o outro permanentemente
-  const [primeiroSetorPreenchido, setPrimeiroSetorPreenchido] = useState<Setor | null>(() => {
-    const regs = getRegistrosForCourse(curso.nome_curso, curso.grau);
-    if (regs.length === 0) return null;
-
-    // Verifica qual setor tem registros
-    const pedagogicoRegs = regs.filter((r) => r.setor === 'Pedagógico');
-    const estagioRegs = regs.filter((r) => r.setor === 'Estágio');
-
-    // Retorna o setor que tem mais antiguidade (primero criado)
-    if (pedagogicoRegs.length > 0 && estagioRegs.length === 0) return 'Pedagógico';
-    if (estagioRegs.length > 0 && pedagogicoRegs.length === 0) return 'Estágio';
-
-    // Se ambos têm registros, retorna o que tem a data mais antiga
-    if (pedagogicoRegs.length > 0 && estagioRegs.length > 0) {
-      const pedagogicoMin = new Date(Math.min(...pedagogicoRegs.map((r) => new Date(r.criado_em).getTime())));
-      const estagioMin = new Date(Math.min(...estagioRegs.map((r) => new Date(r.criado_em).getTime())));
-      return pedagogicoMin <= estagioMin ? 'Pedagógico' : 'Estágio';
-    }
-
-    return null;
-  });
-
-  // Modal para mostrar conclusão do setor
+  // 'setor' = setor recém-concluído; 'curso' = ambos os setores concluídos
   const [showSetorCompletedPopup, setShowSetorCompletedPopup] = useState<{
+    tipo: 'setor' | 'curso';
     setor: Setor;
-    isPrimeiro: boolean;
   } | null>(null);
 
-  // Registros já existentes no banco local
   const [registros, setRegistros] = useState<RegistroItem[]>(() =>
     getRegistrosForCourse(curso.nome_curso, curso.grau)
   );
 
-  // Semestre ativo sendo preenchido (1 até quantidade_semestres)
-  // Sempre inicia no primeiro semestre pendente
-  const [currentSemestre, setCurrentSemestre] = useState<number>(() => {
-    const nextSem = getNextPendingSemester(
-      curso.nome_curso,
-      curso.grau,
-      initialSetor,
-      curso.quantidade_semestres
-    );
-    return nextSem || 1;
-  });
+  const [currentModulo, setCurrentModulo] = useState<number>(
+    () =>
+      getNextPendingModule(curso.nome_curso, curso.grau, resolvedInitialSetor, total) || 1
+  );
 
-  // Estado dos campos de Professor
-  const [quantidadeProf, setQuantidadeProf] = useState<string>('');
-  const [cargaHorariaProf, setCargaHorariaProf] = useState<CargaHoraria | null>(null);
-
-  // Estado dos campos de Mediador
-  const [quantidadeMed, setQuantidadeMed] = useState<string>('');
-  const [cargaHorariaMed, setCargaHorariaMed] = useState<CargaHoraria | null>(null);
-
-  // Foco ativo no preenchimento: 'Professor' | 'Mediador'
-  const [activeCargo, setActiveCargo] = useState<Cargo>('Professor');
-
-  // Controle estrito de salvamento do Professor:
-  // Mediador SÓ é desbloqueado após clicar em "Salvar e Continuar" nos dados do Professor!
-  const [isProfessorSalvoNesteSemestre, setIsProfessorSalvoNesteSemestre] = useState<boolean>(false);
+  const [qtdProf, setQtdProf] = useState('');
+  const [chProf, setChProf] = useState<CargaHoraria | null>(null);
+  const [qtdMed, setQtdMed] = useState('');
+  const [chMed, setChMed] = useState<CargaHoraria | null>(null);
 
   const [formError, setFormError] = useState<string | null>(null);
-  const [savedSuccessNotice, setSavedSuccessNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const otherSetor: Setor = currentSetor === 'Pedagógico' ? 'Estágio' : 'Pedagógico';
-
-  // Referências para rolagem e foco
   const formRef = useRef<HTMLDivElement>(null);
   const profInputRef = useRef<HTMLInputElement>(null);
   const medInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
-  }, [curso.nome_curso, curso.grau]);
+  const otherSetor: Setor = currentSetor === 'Pedagógico' ? 'Estágio' : 'Pedagógico';
 
-  // Função para deslocar a tela e focar no campo do semestre e professor
-  const scrollAndFocusProfessor = () => {
+  const focusProfessor = () => {
     setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       profInputRef.current?.focus();
-    }, 150);
+    }, 120);
   };
 
-  // Carrega os dados do semestre selecionado
-  const loadSemesterData = (sem: number, setor: Setor) => {
-    const regs = getRegistrosForCourse(curso.nome_curso, curso.grau).filter(
-      (r) => r.setor === setor && r.semestre === sem
-    );
-    const regProf = regs.find((r) => r.cargo === 'Professor');
-    const regMed = regs.find((r) => r.cargo === 'Mediador');
-
-    if (regProf && regMed) {
-      setQuantidadeProf(regProf.quantidade.toString());
-      setCargaHorariaProf(regProf.carga_horaria);
-      setQuantidadeMed(regMed.quantidade.toString());
-      setCargaHorariaMed(regMed.carga_horaria);
-      setActiveCargo('Professor');
-      setIsProfessorSalvoNesteSemestre(true);
-    } else if (regProf) {
-      setQuantidadeProf(regProf.quantidade.toString());
-      setCargaHorariaProf(regProf.carga_horaria);
-      setQuantidadeMed('');
-      setCargaHorariaMed(null);
-      setActiveCargo('Mediador');
-      setIsProfessorSalvoNesteSemestre(true);
-    } else {
-      // Novo semestre: quantidade vazia por padrão
-      setQuantidadeProf('');
-      setCargaHorariaProf(null);
-      setQuantidadeMed('');
-      setCargaHorariaMed(null);
-      setActiveCargo('Professor');
-      setIsProfessorSalvoNesteSemestre(false);
-    }
+  const registrosDoModulo = (mod: number, setor: Setor, lista = registros) => {
+    const regs = lista.filter((r) => r.setor === setor && r.modulo === mod);
+    return {
+      prof: regs.find((r) => r.cargo === 'Professor'),
+      med: regs.find((r) => r.cargo === 'Mediador'),
+    };
   };
 
-  // Executa scroll e foco inicial
+  const loadModuleData = (mod: number, setor: Setor) => {
+    const { prof, med } = registrosDoModulo(mod, setor, getRegistrosForCourse(curso.nome_curso, curso.grau));
+    setQtdProf(prof ? String(prof.quantidade) : '');
+    setChProf(prof && prof.quantidade > 0 ? prof.carga_horaria : null);
+    setQtdMed(med ? String(med.quantidade) : '');
+    setChMed(med && med.quantidade > 0 ? med.carga_horaria : null);
+    setFormError(null);
+  };
+
   useEffect(() => {
-    loadSemesterData(currentSemestre, currentSetor);
-    scrollAndFocusProfessor();
-  }, [currentSemestre, currentSetor]);
+    loadModuleData(currentModulo, currentSetor);
+    focusProfessor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentModulo, currentSetor]);
 
-  // Registros do setor atual
-  const registrosSetor = registros.filter((r) => r.setor === currentSetor);
-
-  // Um semestre está concluído se possui ambos os registros (Professor e Mediador)
-  const isSemestreConcluido = (sem: number) => {
-    const regs = registrosSetor.filter((r) => r.semestre === sem);
-    const hasProf = regs.some((r) => r.cargo === 'Professor');
-    const hasMed = regs.some((r) => r.cargo === 'Mediador');
-    return hasProf && hasMed;
+  /* ── Estado de progresso do setor ativo ── */
+  const isModuloConcluido = (mod: number, setor: Setor = currentSetor, lista = registros) => {
+    const { prof, med } = registrosDoModulo(mod, setor, lista);
+    return Boolean(prof && med);
   };
 
-  // Conjunto de semestres concluídos
-  const semestresConcluidos = new Set<number>();
-  for (let s = 1; s <= curso.quantidade_semestres; s++) {
-    if (isSemestreConcluido(s)) {
-      semestresConcluidos.add(s);
-    }
-  }
+  const modulos = Array.from({ length: total }, (_, i) => i + 1);
+  const concluidos = new Set(modulos.filter((m) => isModuloConcluido(m)));
+  const primeiroPendente = modulos.find((m) => !concluidos.has(m)) ?? total;
+  const setorConcluido = concluidos.size >= total;
 
-  // O único semestre editável é o primeiro que tem informação faltando
-  const activeEditableSemestre = (() => {
-    for (let s = 1; s <= curso.quantidade_semestres; s++) {
-      if (!semestresConcluidos.has(s)) {
-        return s;
-      }
-    }
-    return curso.quantidade_semestres; // todos concluídos
-  })();
+  // Só o primeiro módulo pendente é editável; com o setor completo, todos podem ser revisados
+  const isModuloTravado = (mod: number) => (setorConcluido ? false : mod !== primeiroPendente);
 
-  const isSetorTotalmenteConcluido = semestresConcluidos.size >= curso.quantidade_semestres;
+  /* ── Validação ── */
+  const numProf = Number(qtdProf);
+  const numMed = Number(qtdMed);
+  const profQtdOk = qtdProf.trim() !== '' && Number.isInteger(numProf) && numProf >= 0 && numProf <= MAX_QTD;
+  const medQtdOk = qtdMed.trim() !== '' && Number.isInteger(numMed) && numMed >= 0 && numMed <= MAX_QTD;
+  const profOk = profQtdOk && (numProf === 0 || chProf !== null);
+  const medOk = medQtdOk && (numMed === 0 || chMed !== null);
+  const canSalvar = profOk && medOk;
 
-  // Regra obrigatória de travamento:
-  // - Liberar para editar apenas 1 semestre por vez.
-  // - Se um semestre é editável é porque tem informação faltando.
-  // - Se já foi preenchido ou o semestre anterior ainda não foi preenchido travar edição.
-  // - Ao terminar de editar e tornar completo, travar edição enquanto não acabar de preencher os semestres restantes.
-  const isSemestreTravado = (sem: number) => {
-    if (isSetorTotalmenteConcluido) {
-      return false; // quando todo o setor estiver 100% completo, pode visualizar qualquer um
-    }
-    return sem !== activeEditableSemestre;
+  const custoProf = profOk && numProf > 0 ? numProf * buscar_salario(chProf!, 'Professor') * MESES_POR_MODULO : 0;
+  const custoMed = medOk && numMed > 0 ? numMed * buscar_salario(chMed!, 'Mediador') * MESES_POR_MODULO : 0;
+  const custoModulo = custoProf + custoMed;
+
+  const mensagemPendencia = (): string | null => {
+    if (!profQtdOk) return `Informe a quantidade de Professores (0 a ${MAX_QTD}).`;
+    if (numProf > 0 && !chProf) return 'Selecione a carga horária do Professor.';
+    if (!medQtdOk) return `Informe a quantidade de Mediadores (0 a ${MAX_QTD}).`;
+    if (numMed > 0 && !chMed) return 'Selecione a carga horária do Mediador.';
+    return null;
   };
 
-  // Validação estrita do Professor:
-  // - Quantidade: enquanto não digitar um número, não liberar para selecionar carga horária
-  // - Carga horária: se escolher zero, torna facultativo e libera o botão de salvar e continuar para mediador
-  // - Se for número diferente de zero (> 0), desbloquear carga horária e só desbloquear botão de salvar se escolhida a carga
-  const numProf = Number(quantidadeProf);
-  const isProfQuantidadeDigitada =
-    quantidadeProf.trim() !== '' && !isNaN(numProf) && Number.isInteger(numProf) && numProf >= 0 && numProf <= 10;
-  const isProfCargaLiberada =
-    activeCargo === 'Professor' && isProfQuantidadeDigitada && numProf > 0;
-  const canSalvarProfessor =
-    activeCargo === 'Professor' &&
-    isProfQuantidadeDigitada &&
-    (numProf === 0 || cargaHorariaProf !== null);
+  const gravarModulo = (mod: number) => {
+    saveOrUpdateRegistro(curso.nome_curso, curso.grau, currentSetor, mod, 'Professor', numProf, chProf || '10h');
+    saveOrUpdateRegistro(curso.nome_curso, curso.grau, currentSetor, mod, 'Mediador', numMed, chMed || '10h');
+  };
 
-  const isProfessorValid = canSalvarProfessor;
+  const finalizarSetor = () => {
+    const atuais = getRegistrosForCourse(curso.nome_curso, curso.grau);
+    const outroCompleto = modulos.every((m) => isModuloConcluido(m, otherSetor, atuais));
+    setShowSetorCompletedPopup({ tipo: outroCompleto ? 'curso' : 'setor', setor: currentSetor });
+  };
 
-  // Validação estrita do Mediador:
-  // - Segue exatamente o mesmo procedimento de travas do professor
-  // - Enquanto não digitar um número, não liberar para selecionar carga horária
-  // - Se escolher zero, carga horária facultativa e libera botão de salvar semestre
-  // - Se for número diferente de zero (> 0), só desbloquear botão de salvar se for escolhida a carga horária
-  const numMed = Number(quantidadeMed);
-  const isMedQuantidadeDigitada =
-    quantidadeMed.trim() !== '' && !isNaN(numMed) && Number.isInteger(numMed) && numMed >= 0 && numMed <= 10;
-  const isMedCargaLiberada =
-    activeCargo === 'Mediador' &&
-    isProfessorSalvoNesteSemestre &&
-    isMedQuantidadeDigitada &&
-    numMed > 0;
-  const canSalvarSemestre =
-    isProfessorSalvoNesteSemestre &&
-    activeCargo === 'Mediador' &&
-    isMedQuantidadeDigitada &&
-    (numMed === 0 || cargaHorariaMed !== null);
-
-  const isMediadorValid = canSalvarSemestre;
-  const isSemestreProntoParaSalvar = canSalvarSemestre;
-
-  // Salários e custos calculados dinamicamente
-  const salarioUnitarioProf = cargaHorariaProf ? buscar_salario(cargaHorariaProf, 'Professor') : 0;
-  const salarioBaseProf = cargaHorariaProf ? buscar_salario_base(cargaHorariaProf, 'Professor') : 0;
-  const detalhesProf = cargaHorariaProf ? buscar_detalhamento_salario(cargaHorariaProf, 'Professor') : null;
-  const custoCalculadoProf = isProfQuantidadeDigitada ? (numProf === 0 ? 0 : numProf * salarioUnitarioProf * 6) : 0;
-
-  const salarioUnitarioMed = cargaHorariaMed ? buscar_salario(cargaHorariaMed, 'Mediador') : 0;
-  const salarioBaseMed = cargaHorariaMed ? buscar_salario_base(cargaHorariaMed, 'Mediador') : 0;
-  const detalhesMed = cargaHorariaMed ? buscar_detalhamento_salario(cargaHorariaMed, 'Mediador') : null;
-  const custoCalculadoMed = isMedQuantidadeDigitada ? (numMed === 0 ? 0 : numMed * salarioUnitarioMed * 6) : 0;
-
-  const custoTotalSemestre = custoCalculadoProf + custoCalculadoMed;
-
-  // Salva os dados do Professor e continua para o Mediador DENTRO DO MESMO SEMESTRE
-  const handleSalvarProfessorEContinuar = () => {
-    if (!canSalvarProfessor) {
-      if (!isProfQuantidadeDigitada) {
-        setFormError('Por favor, digite a quantidade de Professor (0 a 10).');
-      } else if (numProf > 0 && !cargaHorariaProf) {
-        setFormError('Para quantidade maior que zero, selecione a carga horária do Professor (10h, 20h ou 40h).');
-      }
+  const handleSalvar = () => {
+    const pendencia = mensagemPendencia();
+    if (pendencia) {
+      setFormError(pendencia);
       return;
-    }
-
-    setFormError(null);
-    const chProfToSave: CargaHoraria = cargaHorariaProf || '10h';
-
-    // Salva ou atualiza no banco/storage o registro do Professor
-    saveOrUpdateRegistro(
-      curso.nome_curso,
-      curso.grau,
-      currentSetor,
-      currentSemestre,
-      'Professor',
-      numProf,
-      chProfToSave
-    );
-
-    const updatedRegistros = getRegistrosForCourse(curso.nome_curso, curso.grau);
-    setRegistros(updatedRegistros);
-    setIsProfessorSalvoNesteSemestre(true);
-    setActiveCargo('Mediador');
-    setQuantidadeMed('');
-    setCargaHorariaMed(null);
-    setSavedSuccessNotice(
-      `Dados do Professor (${numProf === 0 ? '0 prof.' : `${numProf} prof. - ${chProfToSave}`}) salvos com sucesso! Agora preencha a quantidade de Mediadores do ${currentSemestre}º Semestre.`
-    );
-    setTimeout(() => {
-      medInputRef.current?.focus();
-    }, 100);
-  };
-
-  // Submissão do Semestre Inteiro:
-  // SÓ PODE AVANÇAR DE SEMESTRE SE TIVER PREENCHIDO E SALVO O DE PROFESSOR E O DE MEDIADOR
-  const handleSalvarSemestre = (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
     }
     setFormError(null);
-    setSavedSuccessNotice(null);
 
-    if (!isProfessorSalvoNesteSemestre) {
-      setFormError('Por favor, preencha e salve os dados do Professor antes de concluir o semestre.');
-      setActiveCargo('Professor');
+    const jaEstavaCompleto = setorConcluido;
+    gravarModulo(currentModulo);
+    setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
+
+    if (jaEstavaCompleto) {
+      setNotice(`Módulo ${currentModulo} atualizado. Custo: ${formatCurrency(custoModulo)}.`);
       return;
     }
 
-    if (!canSalvarSemestre) {
-      if (!isMedQuantidadeDigitada) {
-        setFormError('O preenchimento do Mediador está incompleto. Digite a quantidade (0 a 10).');
-      } else if (numMed > 0 && !cargaHorariaMed) {
-        setFormError('Para quantidade de Mediador maior que zero, selecione a carga horária (10h, 20h ou 40h).');
-      }
-      return;
-    }
-
-    // 1. Garante salvamento do registro de Professor
-    const chProfToSave: CargaHoraria = cargaHorariaProf || '10h';
-    saveOrUpdateRegistro(
-      curso.nome_curso,
-      curso.grau,
-      currentSetor,
-      currentSemestre,
-      'Professor',
-      numProf,
-      chProfToSave
-    );
-
-    // 2. Salva registro de Mediador
-    const chMedToSave: CargaHoraria = cargaHorariaMed || '10h';
-    saveOrUpdateRegistro(
-      curso.nome_curso,
-      curso.grau,
-      currentSetor,
-      currentSemestre,
-      'Mediador',
-      numMed,
-      chMedToSave
-    );
-
-    const updatedRegistros = getRegistrosForCourse(curso.nome_curso, curso.grau);
-    setRegistros(updatedRegistros);
-
-    // REGRA CRÍTICA: Ao terminar de editar e tornar completo, travar edição enquanto não acabar de preencher os semestres restantes.
-    if (currentSemestre < curso.quantidade_semestres) {
-      const nextSem = currentSemestre + 1;
-      setCurrentSemestre(nextSem);
-      setQuantidadeProf('');
-      setCargaHorariaProf(null);
-      setQuantidadeMed('');
-      setCargaHorariaMed(null);
-      setIsProfessorSalvoNesteSemestre(false);
-      setActiveCargo('Professor');
-      setSavedSuccessNotice(
-        `Semestre ${currentSemestre}º concluído e salvo com sucesso! Custo do semestre: ${formatCurrency(
-          custoTotalSemestre
-        )}. Preencha agora os dados do ${nextSem}º Semestre.`
-      );
-      scrollAndFocusProfessor();
+    if (currentModulo < total) {
+      const next = currentModulo + 1;
+      setNotice(`Módulo ${currentModulo} salvo (${formatCurrency(custoModulo)}).`);
+      setCurrentModulo(next);
     } else {
-      // Marca este setor como o primeiro preenchido (se ainda não houver)
-      if (!primeiroSetorPreenchido) {
-        setPrimeiroSetorPreenchido(currentSetor);
-      }
-
-      setShowSectorCompletedPopup({
-        setor: currentSetor,
-        isPrimeiro: primeiroSetorPreenchido === null,
-      });
+      finalizarSetor();
     }
   };
 
+  /* ── Atalhos de produtividade ── */
+  const copiarModuloAnterior = () => {
+    if (currentModulo <= 1) return;
+    const { prof, med } = registrosDoModulo(currentModulo - 1, currentSetor);
+    if (!prof || !med) return;
+    setQtdProf(String(prof.quantidade));
+    setChProf(prof.quantidade > 0 ? prof.carga_horaria : null);
+    setQtdMed(String(med.quantidade));
+    setChMed(med.quantidade > 0 ? med.carga_horaria : null);
+    setFormError(null);
+  };
 
+  const aplicarNosRestantes = () => {
+    const pendencia = mensagemPendencia();
+    if (pendencia) {
+      setFormError(pendencia);
+      return;
+    }
+    const restantes = total - currentModulo + 1;
+    if (
+      !window.confirm(
+        `Aplicar estes valores aos ${restantes} módulo(s) restante(s) (${currentModulo}º ao ${total}º) do Setor ${currentSetor}? Você poderá ajustar depois em Consultar Registros.`
+      )
+    ) {
+      return;
+    }
+    for (let m = currentModulo; m <= total; m++) gravarModulo(m);
+    setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
+    finalizarSetor();
+  };
+
+  const podeCopiar = currentModulo > 1 && isModuloConcluido(currentModulo - 1) && !isModuloConcluido(currentModulo);
+  const podeAplicarRestantes = !setorConcluido && currentModulo < total;
+
+  /* ── Resumo compacto por ano ── */
+  const anos = Array.from({ length: Math.ceil(total / MODULOS_POR_ANO) }, (_, i) => i + 1);
+  const totalSetor = registros
+    .filter((r) => r.setor === currentSetor)
+    .reduce((s, r) => s + r.custo, 0);
+  const percentual = total > 0 ? Math.round((concluidos.size / total) * 100) : 0;
+
+  const trocarSetor = (s: Setor) => {
+    setCurrentSetor(s);
+    setCurrentModulo(getNextPendingModule(curso.nome_curso, curso.grau, s, total) || 1);
+    setNotice(null);
+  };
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 space-y-6">
-      {/* Top Header & Breadcrumb Unicive */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
+    <div className="max-w-5xl mx-auto py-5 px-4 sm:px-6 space-y-3">
+      {/* Cabeçalho */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onCancel}
             className="p-2 text-slate-500 hover:text-[#239371] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
@@ -441,900 +363,418 @@ export const DemandRegistrationFlow: React.FC<DemandRegistrationFlowProps> = (pr
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="badge-unicive-ead">EAD UNICIVE</span>
               <span className="text-xs font-semibold text-slate-500">
-                {curso.grau} &bull; {curso.duracao_curso} anos &bull; {curso.quantidade_semestres} semestres
+                {curso.grau} &bull; {curso.duracao_curso} anos &bull; {total} módulos trimestrais
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-              {curso.nome_curso}
-            </h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{curso.nome_curso}</h1>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {onGoToReport && (
-            <button
-              onClick={() => onGoToReport(curso)}
-              className="btn-unicive-outline text-xs py-2 px-3"
-              title="Ver Relatório deste Curso"
-            >
+            <button onClick={() => onGoToReport(curso)} className="btn-unicive-outline text-xs py-1.5 px-3">
               <BookOpen className="w-3.5 h-3.5 mr-1.5" />
-              <span>Ver Relatório</span>
+              <span>Relatório</span>
             </button>
           )}
-          <button
-            onClick={onGoToConsult}
-            className="btn-unicive-outline text-xs py-2 px-3"
-          >
+          <button onClick={onGoToConsult} className="btn-unicive-outline text-xs py-1.5 px-3">
             <Search className="w-3.5 h-3.5 mr-1.5" />
-            <span>Consultar Registros Salvos</span>
+            <span>Consultar Registros</span>
           </button>
         </div>
       </div>
 
-      {/* SELETOR DE SETORES (Travado durante preenchimento ou inserção do mediador) */}
-      <div className="flex rounded-xl bg-slate-100 p-1.5 gap-1.5 border border-slate-200">
-        {(['Pedagógico', 'Estágio'] as Setor[]).map((s) => {
-          const isAtivo = currentSetor === s;
-          const regs = registros.filter((r) => r.setor === s);
-          const completosCount = Array.from({ length: curso.quantidade_semestres }, (_, i) => i + 1).filter((sem) => {
-            const hasP = regs.some((r) => r.semestre === sem && r.cargo === 'Professor');
-            const hasM = regs.some((r) => r.semestre === sem && r.cargo === 'Mediador');
-            return hasP && hasM;
-          }).length;
-          const isCompleto = completosCount >= curso.quantidade_semestres;
-
-          // REGRA: Se há um setor preenchido, bloqueir o outro permanentemente
-          const isSetorBloqueadoPermanentemente = primeiroSetorPreenchido !== null && primeiroSetorPreenchido !== s;
-          // Setor travado enquanto não concluir todos os semestres deste setor ou durante mediador
-          const isSetorBloqueado = isSetorBloqueadoPermanentemente || (!isSetorTotalmenteConcluido && !isAtivo) || activeCargo === 'Mediador';
-
-          return (
-            <button
-              key={s}
-              type="button"
-              id={`btn-setor-${s.toLowerCase()}`}
-              disabled={isSetorBloqueado}
-              title={
-                isSetorBloqueadoPermanentemente
-                  ? `Setor ${s} permanentemente bloqueado: o Setor ${primeiroSetorPreenchido} foi preenchido. Edições devem ser feitas na aba Consultar Registros.`
-                  : isSetorBloqueado
-                  ? `Setor ${s} travado: conclua todos os semestres do Setor ${currentSetor} primeiro.`
-                  : `Alternar para Setor ${s}`
-              }
-              onClick={() => {
-                if (isSetorBloqueadoPermanentemente) {
-                  setFormError(`Setor ${s} está permanentemente bloqueado. O Setor ${primeiroSetorPreenchido} já foi concluído. Todas as edições devem ser feitas na aba "Consultar Registros".`);
-                  return;
-                }
-                if (!isSetorBloqueado && currentSetor !== s) {
-                  setCurrentSetor(s);
-                  const nextSem = getNextPendingSemester(
-                    curso.nome_curso,
-                    curso.grau,
-                    s,
-                    curso.quantidade_semestres
-                  );
-                  const alvoSem = nextSem || 1;
-                  setCurrentSemestre(alvoSem);
-                  loadSemesterData(alvoSem, s);
-                  setSavedSuccessNotice(null);
-                  scrollAndFocusProfessor();
-                }
-              }}
-              className={`flex-1 py-3 px-4 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-                isSetorBloqueado
-                  ? 'text-slate-400 bg-slate-100 cursor-not-allowed opacity-60 border border-transparent'
-                  : isAtivo
-                  ? 'bg-white text-[#239371] font-bold shadow-xs border border-slate-200 ring-1 ring-black/5 cursor-default'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 cursor-pointer'
-              }`}
-            >
-              {isSetorBloqueado && !isAtivo && <Lock className="w-3.5 h-3.5 text-slate-400" />}
-              <span>Setor {s}</span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isCompleto
-                    ? 'bg-emerald-100 text-[#117d5d]'
-                    : completosCount > 0
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                {completosCount} / {curso.quantidade_semestres} semestres
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* BLOCO DE PROGRESSÃO DOS SEMESTRES:
-          Regras de cores solicitadas:
-          - Registro concluído: VERDE (travado para edição enquanto houver semestres pendentes)
-          - Em edição: AMARELO (habilitar somente a cor do semestre em edição)
-          - Travado por ausência de dados no semestre anterior: CINZA (não sendo possível acessá-lo)
-      */}
-      <div className="card-unicive p-5 border border-slate-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 text-xs">
-          <span className="font-bold text-slate-700 uppercase tracking-wider">
-            PROGRESSÃO DOS SEMESTRES &bull; SETOR {currentSetor.toUpperCase()}
-          </span>
-          <div className="flex items-center gap-4 text-[11px] text-slate-600">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#239371]"></span> Concluído (Verde)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Em edição (Amarelo)
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Travado (Cinza)
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
-          {Array.from({ length: curso.quantidade_semestres }, (_, i) => i + 1).map((sem) => {
-            const isEmEdicao = sem === currentSemestre;
-            const isConcluido = semestresConcluidos.has(sem);
-            const isTravado = isSemestreTravado(sem) || (activeCargo === 'Mediador' && !isEmEdicao);
-
-            // Determina as classes e estilos conforme regra estrita do usuário
-            let buttonClasses = '';
-            let statusLabel = '';
-            let statusIcon = null;
-
-            if (isEmEdicao) {
-              // Em edição: AMARELO (habilitar somente a cor do semestre em edição)
-              buttonClasses =
-                'bg-amber-100 text-amber-950 border-2 border-amber-400 ring-2 ring-amber-300/80 shadow-md font-bold cursor-default';
-              statusLabel = 'Em edição';
-              statusIcon = <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></span>;
-            } else if (isConcluido) {
-              // Concluído: VERDE - travado para edição enquanto houver semestres pendentes
-              buttonClasses =
-                'bg-[#ebf7f2] text-[#117d5d] border border-[#239371]/50 font-semibold cursor-not-allowed opacity-90';
-              statusLabel = 'Concluído';
-              statusIcon = <CheckCircle2 className="w-3 h-3 text-[#239371]" />;
-            } else {
-              // Travado por ausência de dados no semestre anterior: CINZA
-              buttonClasses =
-                'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60';
-              statusLabel = 'Travado';
-              statusIcon = <Lock className="w-3 h-3 text-slate-400" />;
-            }
-
+      {/* Setores + progresso */}
+      <div className="card-unicive p-3 space-y-3">
+        <div className="flex rounded-lg bg-slate-100 p-1 gap-1">
+          {(['Pedagógico', 'Estágio'] as Setor[]).map((s) => {
+            const isAtivo = currentSetor === s;
+            const feitos = modulos.filter((m) => isModuloConcluido(m, s)).length;
+            const bloqueado = !setorConcluido && !isAtivo;
             return (
               <button
-                key={sem}
+                key={s}
                 type="button"
-                id={`btn-semestre-progressao-${sem}`}
-                disabled={isTravado || isEmEdicao}
+                id={`btn-setor-${s.toLowerCase()}`}
+                disabled={bloqueado}
                 title={
-                  isEmEdicao
-                    ? `Semestre ${sem}º em edição ativa.`
-                    : isConcluido
-                    ? `Semestre ${sem}º concluído. Travado para edição enquanto os demais semestres não forem concluídos.`
-                    : `Semestre ${sem}º travado. Conclua o ${activeEditableSemestre}º semestre primeiro.`
+                  bloqueado
+                    ? `Conclua todos os módulos do Setor ${currentSetor} primeiro.`
+                    : `Alternar para Setor ${s}`
                 }
                 onClick={() => {
-                  if (!isTravado) {
-                    setCurrentSemestre(sem);
-                    loadSemesterData(sem, currentSetor);
-                    setSavedSuccessNotice(null);
-                    scrollAndFocusProfessor();
-                  }
+                  if (!bloqueado && !isAtivo) trocarSetor(s);
                 }}
-                className={`p-3 rounded-xl text-center transition-all ${buttonClasses}`}
+                className={`flex-1 py-2 px-3 rounded-md text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  bloqueado
+                    ? 'text-slate-400 cursor-not-allowed opacity-60'
+                    : isAtivo
+                    ? 'bg-white text-[#239371] font-bold shadow-xs ring-1 ring-black/5 cursor-default'
+                    : 'text-slate-600 hover:bg-slate-200/60 cursor-pointer'
+                }`}
               >
-                <div className="text-xs font-bold leading-tight">
-                  {sem}º Semestre
-                </div>
-                <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
-                  {statusIcon}
-                  <span>{statusLabel}</span>
-                </div>
+                {bloqueado && !isAtivo && <Lock className="w-3 h-3" />}
+                <span>{s}</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    feitos >= total
+                      ? 'bg-emerald-100 text-[#117d5d]'
+                      : feitos > 0
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {feitos}/{total}
+                </span>
               </button>
+            );
+          })}
+        </div>
+
+        {/* Barra de progresso */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full bg-[#239371] transition-all" style={{ width: `${percentual}%` }} />
+          </div>
+          <span className="text-[11px] font-bold text-slate-600 tabular whitespace-nowrap">
+            {concluidos.size}/{total} módulos &bull; {formatCurrency(totalSetor)}
+          </span>
+        </div>
+
+        {/* Mapa de módulos agrupado por ano */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+          {anos.map((ano) => {
+            const doAno = modulos.filter((m) => Math.ceil(m / MODULOS_POR_ANO) === ano);
+            return (
+              <div key={ano} className="flex items-center gap-2">
+                <span className="w-9 shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Ano {ano}
+                </span>
+                <div className="flex-1 grid grid-cols-4 gap-1">
+                  {doAno.map((mod) => {
+                    const ativo = mod === currentModulo;
+                    const feito = concluidos.has(mod);
+                    const travado = isModuloTravado(mod);
+                    return (
+                      <button
+                        key={mod}
+                        type="button"
+                        id={`btn-modulo-progressao-${mod}`}
+                        disabled={travado || ativo}
+                        title={
+                          ativo
+                            ? `Módulo ${mod} em edição`
+                            : feito
+                            ? `Módulo ${mod} concluído`
+                            : travado
+                            ? `Módulo ${mod} travado. Conclua o ${primeiroPendente}º primeiro.`
+                            : `Ir para o módulo ${mod}`
+                        }
+                        onClick={() => {
+                          setCurrentModulo(mod);
+                          setNotice(null);
+                        }}
+                        className={`h-7 rounded-md text-[11px] font-bold flex items-center justify-center gap-0.5 transition-all ${
+                          ativo
+                            ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 cursor-default'
+                            : feito
+                            ? `bg-[#ebf7f2] text-[#117d5d] border border-[#239371]/40 ${
+                                travado ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-100'
+                              }`
+                            : 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
+                        }`}
+                      >
+                        {feito && !ativo ? <CheckCircle2 className="w-3 h-3" /> : null}
+                        M{mod}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* FORMULÁRIO DO SEMESTRE ATIVO (Ponto de ancoragem para rolagem e foco) */}
+      {/* Formulário do módulo ativo */}
       <div
         ref={formRef}
-        id="formulario-semestre-ativo"
-        className="card-unicive p-6 sm:p-8 border border-slate-200 shadow-sm scroll-mt-24 space-y-6"
+        id="formulario-modulo-ativo"
+        className="card-unicive p-4 border-l-4 border-l-amber-400 scroll-mt-4 space-y-3"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
-          <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-xl bg-[#239371] text-white font-bold text-base flex items-center justify-center shadow-xs">
-              {currentSemestre}º
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="min-w-9 h-9 px-2 rounded-lg bg-[#239371] text-white font-bold text-sm flex items-center justify-center">
+              M{currentModulo}
             </span>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Preenchimento do {currentSemestre}º Semestre &bull; Setor {currentSetor}
+            <div className="leading-tight">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Módulo {currentModulo} de {total} &bull; Ano {Math.ceil(currentModulo / MODULOS_POR_ANO)} &bull; {currentSetor}
               </h3>
-              <span className="text-xs text-slate-500">
-                Duração de 6 meses &bull; Preencha sequencialmente o Professor e o Mediador
+              <span className="text-[11px] text-slate-500">
+                {MESES_POR_MODULO} meses &bull; custo = qtd &times; salário c/ encargos (+***%) &times; {MESES_POR_MODULO}
               </span>
             </div>
           </div>
 
-          <span className="badge-unicive-green self-start sm:self-auto text-[11px]">
-            custo = quantidade &times; salário c/ encargos (+***%) &times; 6 meses
-          </span>
+          {podeCopiar && (
+            <button
+              type="button"
+              id="btn-copiar-modulo-anterior"
+              onClick={copiarModuloAnterior}
+              className="btn-unicive-outline text-[11px] py-1.5 px-2.5"
+              title="Copiar quantidades e cargas horárias do módulo anterior"
+            >
+              <Copy className="w-3 h-3 mr-1.5" />
+              Repetir módulo {currentModulo - 1}
+            </button>
+          )}
         </div>
 
-        {/* Aviso de sucesso após salvamento */}
-        {savedSuccessNotice && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 text-[#117d5d] text-xs font-semibold rounded-xl flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#239371] shrink-0" />
-            <span>{savedSuccessNotice}</span>
+        {notice && (
+          <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-[#117d5d] text-xs font-semibold rounded-lg flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#239371] shrink-0" />
+            <span>{notice}</span>
           </div>
         )}
 
-        {/* Aviso de erro */}
         {formError && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{formError}</span>
           </div>
         )}
 
-        {/* FLUXO CONTROLADO:
-            1. PROFESSOR
-            2. MEDIADOR
-        */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (activeCargo === 'Professor') {
-              if (canSalvarProfessor) {
-                handleSalvarProfessorEContinuar();
-              } else if (!isProfQuantidadeDigitada) {
-                setFormError('Por favor, informe a quantidade de Professor (0 a 10).');
-              } else if (numProf > 0 && !cargaHorariaProf) {
-                setFormError('Para quantidade maior que zero, selecione a carga horária do Professor (10h, 20h ou 40h).');
-              }
-            } else {
-              if (canSalvarSemestre) {
-                handleSalvarSemestre(e);
-              } else if (!isProfessorSalvoNesteSemestre) {
-                setFormError('Por favor, preencha e salve os dados do Professor antes de preencher o mediador.');
-              } else if (!isMedQuantidadeDigitada) {
-                setFormError('Por favor, informe a quantidade de Mediador (0 a 10).');
-              } else if (numMed > 0 && !cargaHorariaMed) {
-                setFormError('Para quantidade maior que zero, selecione a carga horária do Mediador (10h, 20h ou 40h).');
-              }
-            }
+            handleSalvar();
           }}
-          className="space-y-6"
+          className="space-y-3"
         >
-          {/* SELETOR/INDICADOR DE ETAPA INTERNA */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Indicador Professor */}
-            <div
-              id="tab-cargo-professor"
-              className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
-                activeCargo === 'Professor'
-                  ? 'bg-[#ebf7f2] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs'
-                  : isProfessorSalvoNesteSemestre
-                  ? 'bg-slate-50 border-emerald-300 text-slate-700'
-                  : 'bg-white border-slate-200 text-slate-600'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <GraduationCap
-                  className={`w-5 h-5 ${
-                    activeCargo === 'Professor' ? 'text-[#239371]' : 'text-slate-500'
-                  }`}
-                />
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider block">
-                    1. Professor
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    {isProfessorValid
-                      ? numProf === 0
-                        ? '0 prof. (sem professor) • R$ 0,00'
-                        : `${numProf} prof. (${cargaHorariaProf || '10h'}) • ${formatCurrency(custoCalculadoProf)}`
-                      : 'Etapa inicial obrigatória'}
-                  </span>
-                </div>
-              </div>
-              <div>
-                {isProfessorSalvoNesteSemestre ? (
-                  <span className="text-[10px] font-bold text-[#117d5d] bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Registrado
-                  </span>
-                ) : isProfessorValid ? (
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    Pronto p/ Salvar
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                    Pendente
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Indicador Mediador:
-                TRAVADO estritamente enquanto Professor não for SALVO (clique em "Salvar e Continuar")
-            */}
-            <div
-              id="tab-cargo-mediador"
-              className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
-                !isProfessorSalvoNesteSemestre
-                  ? 'bg-slate-100 text-slate-400 border-slate-200 opacity-60'
-                  : activeCargo === 'Mediador'
-                  ? 'bg-[#ebf7f2] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs text-slate-900'
-                  : isMediadorValid
-                  ? 'bg-slate-50 border-emerald-300 text-slate-700'
-                  : 'bg-white border-slate-300 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Sparkles
-                  className={`w-5 h-5 ${
-                    !isProfessorSalvoNesteSemestre
-                      ? 'text-slate-400'
-                      : activeCargo === 'Mediador'
-                      ? 'text-[#e7972a]'
-                      : 'text-slate-500'
-                  }`}
-                />
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider block">
-                    2. Mediador
-                  </span>
-                  <span className="text-[11px]">
-                    {!isProfessorSalvoNesteSemestre
-                      ? 'Travado (Clique em Salvar no Professor)'
-                      : isMediadorValid
-                      ? numMed === 0
-                        ? '0 med. (sem mediador) • R$ 0,00'
-                        : `${numMed} med. (${cargaHorariaMed || '10h'}) • ${formatCurrency(custoCalculadoMed)}`
-                      : 'Liberado para preenchimento'}
-                  </span>
-                </div>
-              </div>
-              <div>
-                {!isProfessorSalvoNesteSemestre ? (
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Travado
-                  </span>
-                ) : isMediadorValid ? (
-                  <span className="text-[10px] font-bold text-[#117d5d] bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> OK
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                    Pendente
-                  </span>
-                )}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <RoleFields
+              cargo="Professor"
+              icon={<GraduationCap className="w-4 h-4 text-[#239371]" />}
+              qtd={qtdProf}
+              ch={chProf}
+              inputRef={profInputRef}
+              onQtd={(v) => {
+                setQtdProf(v);
+                if (Number(v) === 0) setChProf(null);
+                setFormError(null);
+              }}
+              onCh={(v) => {
+                setChProf(v);
+                setFormError(null);
+              }}
+              onEnter={() => (profOk ? medInputRef.current?.focus() : setFormError(mensagemPendencia()))}
+            />
+            <RoleFields
+              cargo="Mediador"
+              icon={<Sparkles className="w-4 h-4 text-[#e7972a]" />}
+              qtd={qtdMed}
+              ch={chMed}
+              inputRef={medInputRef}
+              onQtd={(v) => {
+                setQtdMed(v);
+                if (Number(v) === 0) setChMed(null);
+                setFormError(null);
+              }}
+              onCh={(v) => {
+                setChMed(v);
+                setFormError(null);
+              }}
+              onEnter={handleSalvar}
+            />
           </div>
 
-          {/* CARD 1: FORMULÁRIO DO PROFESSOR
-              Regra: Uma vez preenchido e salvo o de professor, ele fica travado e não pode ser editado enquanto se insere os dados do mediador.
-          */}
-          <div
-            className={`p-5 rounded-2xl border transition-all ${
-              activeCargo === 'Professor'
-                ? 'bg-white border-[#239371]/40 shadow-xs'
-                : 'bg-slate-50/80 border-slate-200'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-4 h-4 text-[#239371]" />
-                <h4 className="text-sm font-bold text-slate-900">
-                  Dados do Professor (Titular)
-                </h4>
-              </div>
-
-              {/* Trava visual quando estiver no mediador: não permite edição */}
-              {activeCargo === 'Mediador' && isProfessorSalvoNesteSemestre && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-slate-600 bg-white px-2.5 py-1 rounded-md border border-slate-300 flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-slate-500" /> Preencher mediador
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Campo Quantidade de Professor: Vazio por padrão */}
-              <div>
-                <label
-                  htmlFor="input-quantidade-professor"
-                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2"
-                >
-                  Quantidade de Professores
-                </label>
-                <input
-                  ref={profInputRef}
-                  id="input-quantidade-professor"
-                  type="number"
-                  min="0"
-                  max="10"
-                  disabled={activeCargo === 'Mediador'}
-                  value={quantidadeProf}
-                  onChange={(e) => {
-                    setQuantidadeProf(e.target.value);
-                    setIsProfessorSalvoNesteSemestre(false);
-                    setFormError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (canSalvarProfessor) {
-                        handleSalvarProfessorEContinuar();
-                      }
-                    }
-                  }}
-                  placeholder="Digite a quantidade (0 a 10)"
-                  className={`w-full px-4 py-3 rounded-lg border text-sm font-bold tabular transition-all focus:outline-none focus:ring-2 focus:ring-[#239371] ${
-                    activeCargo === 'Mediador'
-                      ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                      : 'bg-white text-slate-900 border-slate-300'
-                  }`}
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  {quantidadeProf === ''
-                    ? 'Campo obrigatório (inicia vazio). Digite 0 se não houver professor.'
-                    : numProf === 0
-                    ? 'Quantidade: 0 (sem professor) — carga horária dispensada e botão "Salvar e Continuar" destravado.'
-                    : isProfQuantidadeDigitada
-                    ? `Quantidade informada: ${numProf} prof. ${!cargaHorariaProf ? '(selecione a carga horária para destravar o botão)' : '— botão "Salvar e Continuar" destravado.'}`
-                    : 'Informe um número inteiro válido entre 0 e 10.'}
-                </span>
-              </div>
-
-              {/* Carga Horária de Professor:
-                  - Enquanto não digitar um número, não liberar para selecionar carga horária
-                  - Se escolher zero, carga horária facultativa
-                  - Se diferente de zero, desbloquear carga horária
-              */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Carga Horária Semanal (Professor)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
-                    const isSelected = cargaHorariaProf === ch;
-                    const isDisabled = activeCargo === 'Mediador' || !isProfCargaLiberada;
-                    return (
-                      <button
-                        type="button"
-                        key={`prof-${ch}`}
-                        id={`btn-ch-prof-${ch}`}
-                        disabled={isDisabled}
-                        onClick={() => {
-                          if (!isDisabled) {
-                            setCargaHorariaProf(ch);
-                            setIsProfessorSalvoNesteSemestre(false);
-                            setFormError(null);
-                          }
-                        }}
-                        className={`py-3 px-2 rounded-lg text-xs font-bold transition-all border ${
-                          isDisabled
-                            ? isSelected
-                              ? 'bg-slate-200 text-slate-500 border-slate-200 cursor-not-allowed opacity-60'
-                              : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                            : isSelected
-                            ? 'bg-[#239371] text-white border-[#239371] shadow-xs cursor-pointer'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer'
-                        }`}
-                      >
-                        {ch}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  {activeCargo === 'Mediador'
-                    ? 'Travado durante edição do mediador.'
-                    : !isProfQuantidadeDigitada
-                    ? 'Bloqueado: digite a quantidade de professores para liberar a carga horária.'
-                    : numProf === 0
-                    ? 'Quantidade é zero: carga horária facultativa/dispensada (custo R$ 0,00).'
-                    : cargaHorariaProf
-                    ? `Salário c/ encargos (+***%): ${formatCurrency(salarioUnitarioProf)} / mês (Base: ${formatCurrency(salarioBaseProf)})`
-                    : 'Selecione uma das cargas horárias (10h, 20h ou 40h) para liberar o botão de salvar.'}
-                </span>
-              </div>
-            </div>
-
-            {/* Demonstrativo Parcial do Professor & Botão de Avanço Salvar e Continuar */}
-            <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="text-xs">
-                <span className="text-slate-500 font-medium">Subtotal Professor: </span>
-                <span className="font-bold text-slate-900 tabular">
-                  {isProfQuantidadeDigitada
-                    ? numProf === 0
-                      ? '0 prof. (sem professor) = R$ 0,00'
-                      : cargaHorariaProf
-                      ? `${numProf} × ${formatCurrency(salarioUnitarioProf)} × 6 meses = ${formatCurrency(custoCalculadoProf)}`
-                      : `${numProf} prof. (selecione a carga horária)`
-                    : 'Aguardando digitação da quantidade (0 a 10)'}
-                </span>
-                {cargaHorariaProf && numProf > 0 && detalhesProf && (
-                  <span className="block text-[11px] text-slate-500 mt-0.5">
-                    Composição unitária: Base {formatCurrency(detalhesProf.salarioBase)} + Trabalhistas (13º/Férias/1/3) {formatCurrency(detalhesProf.subtotalTrabalhista)} + Encargos (INSS ***%/Adicionais ***%) {formatCurrency(detalhesProf.subtotalEncargos)}
-                  </span>
-                )}
-              </div>
-
-              {activeCargo === 'Professor' && (
-                <button
-                  type="button"
-                  id="btn-confirmar-professor-ir-mediador"
-                  disabled={!canSalvarProfessor}
-                  onClick={handleSalvarProfessorEContinuar}
-                  className={`text-xs font-bold px-4 py-2.5 rounded-lg transition-all inline-flex items-center gap-1.5 ${
-                    canSalvarProfessor
-                      ? 'bg-[#239371] hover:bg-[#117d5d] text-white shadow-xs cursor-pointer'
-                      : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-75'
-                  }`}
-                  title={
-                    !canSalvarProfessor
-                      ? !isProfQuantidadeDigitada
-                        ? 'Digite a quantidade para destravar'
-                        : 'Selecione a carga horária para destravar este botão'
-                      : 'Salvar dados do Professor e continuar para o Mediador deste semestre'
-                  }
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Salvar e Continuar para Mediador</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* CARD 2: FORMULÁRIO DO MEDIADOR
-              Regra: Travado enquanto professor não for SALVO (clique em "Salvar e Continuar").
-              Ao salvar o professor, libera apenas a quantidade de mediadores.
-              Todos os outros botões ficam inativados.
-              Segue o mesmo procedimento de travas do professor.
-          */}
-          <div
-            className={`p-5 rounded-2xl border transition-all ${
-              !isProfessorSalvoNesteSemestre
-                ? 'bg-slate-100/60 border-slate-200 opacity-65'
-                : activeCargo === 'Mediador'
-                ? 'bg-white border-[#239371]/40 shadow-xs'
-                : 'bg-slate-50/80 border-slate-200'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#e7972a]" />
-                <h4 className="text-sm font-bold text-slate-900">
-                  Dados do Mediador (Tutor)
-                </h4>
-              </div>
-
-              {!isProfessorSalvoNesteSemestre ? (
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-md flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Bloqueado: clique em "Salvar e Continuar" no Professor para liberar
-                </span>
-              ) : isMediadorValid ? (
-                <span className="text-[11px] font-bold text-[#117d5d] bg-emerald-100 px-2.5 py-1 rounded-md flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Mediador Configurado
-                </span>
-              ) : (
-                <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-md">
-                  Liberado para preenchimento
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Campo Quantidade de Mediador: Vazio por padrão. Único liberado de início no passo 2 */}
-              <div>
-                <label
-                  htmlFor="input-quantidade-mediador"
-                  className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2"
-                >
-                  Quantidade de Mediadores
-                </label>
-                <input
-                  ref={medInputRef}
-                  id="input-quantidade-mediador"
-                  type="number"
-                  min="0"
-                  max="10"
-                  disabled={!isProfessorSalvoNesteSemestre || activeCargo !== 'Mediador'}
-                  value={quantidadeMed}
-                  onChange={(e) => {
-                    setQuantidadeMed(e.target.value);
-                    setFormError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (canSalvarSemestre) {
-                        handleSalvarSemestre();
-                      }
-                    }
-                  }}
-                  placeholder="Digite a quantidade (0 a 10)"
-                  className={`w-full px-4 py-3 rounded-lg border text-sm font-bold tabular transition-all focus:outline-none focus:ring-2 focus:ring-[#239371] ${
-                    !isProfessorSalvoNesteSemestre || activeCargo !== 'Mediador'
-                      ? 'bg-slate-200/60 text-slate-400 border-slate-200 cursor-not-allowed'
-                      : 'bg-white text-slate-900 border-slate-300'
-                  }`}
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  {!isProfessorSalvoNesteSemestre
-                    ? 'Bloqueado: salve os dados do Professor para liberar.'
-                    : quantidadeMed === ''
-                    ? 'Campo obrigatório (inicia vazio). Digite 0 se não houver mediador.'
-                    : numMed === 0
-                    ? 'Quantidade 0 (sem mediador) — carga horária facultativa e botão de salvar liberado.'
-                    : isMedQuantidadeDigitada
-                    ? `Quantidade informada: ${numMed} med. ${!cargaHorariaMed ? '(selecione a carga horária para liberar o botão de salvar)' : '— botão de salvar liberado.'}`
-                    : 'Informe um número inteiro válido entre 0 e 10.'}
-                </span>
-              </div>
-
-              {/* Carga Horária de Mediador:
-                  - Enquanto não digitar um número, não liberar para selecionar carga horária
-                  - Se escolher zero, carga horária facultativa
-                  - Se diferente de zero, desbloquear carga horária
-              */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Carga Horária Semanal (Mediador)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
-                    const isSelected = cargaHorariaMed === ch;
-                    const isDisabled =
-                      !isProfessorSalvoNesteSemestre ||
-                      activeCargo !== 'Mediador' ||
-                      !isMedCargaLiberada;
-                    return (
-                      <button
-                        type="button"
-                        key={`med-${ch}`}
-                        id={`btn-ch-med-${ch}`}
-                        disabled={isDisabled}
-                        onClick={() => {
-                          if (!isDisabled) {
-                            setCargaHorariaMed(ch);
-                            setFormError(null);
-                          }
-                        }}
-                        className={`py-3 px-2 rounded-lg text-xs font-bold transition-all border ${
-                          isDisabled
-                            ? isSelected
-                              ? 'bg-slate-200 text-slate-500 border-slate-200 cursor-not-allowed opacity-60'
-                              : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                            : isSelected
-                            ? 'bg-[#239371] text-white border-[#239371] shadow-xs cursor-pointer'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer'
-                        }`}
-                      >
-                        {ch}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  {!isProfessorSalvoNesteSemestre
-                    ? 'Bloqueado até salvar os dados do Professor.'
-                    : !isMedQuantidadeDigitada
-                    ? 'Bloqueado: digite a quantidade de mediadores para liberar a carga horária.'
-                    : numMed === 0
-                    ? 'Quantidade é zero: carga horária facultativa/dispensada (custo R$ 0,00).'
-                    : cargaHorariaMed
-                    ? `Salário c/ encargos (+***%): ${formatCurrency(salarioUnitarioMed)} / mês (Base: ${formatCurrency(salarioBaseMed)})`
-                    : 'Selecione uma das cargas horárias (10h, 20h ou 40h) para liberar o botão de salvar.'}
-                </span>
-              </div>
-            </div>
-
-            {/* Demonstrativo Parcial do Mediador */}
-            <div className="mt-4 pt-3 border-t border-slate-200/80 text-xs">
-              <span className="text-slate-500 font-medium">Subtotal Mediador: </span>
-              <span className="font-bold text-slate-900 tabular">
-                {!isProfessorSalvoNesteSemestre
-                  ? 'Bloqueado: aguardando salvar dados do Professor'
-                  : isMedQuantidadeDigitada
-                  ? numMed === 0
-                    ? '0 med. (sem mediador) = R$ 0,00'
-                    : cargaHorariaMed
-                    ? `${numMed} × ${formatCurrency(salarioUnitarioMed)} × 6 meses = ${formatCurrency(custoCalculadoMed)}`
-                    : `${numMed} med. (selecione a carga horária)`
-                  : 'Aguardando digitação da quantidade (0 a 10)'}
+          {/* Total + ações */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <div className="leading-tight">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                Custo do módulo
               </span>
-              {isProfessorSalvoNesteSemestre && cargaHorariaMed && numMed > 0 && detalhesMed && (
-                <span className="block text-[11px] text-slate-500 mt-0.5">
-                  Composição unitária: Base {formatCurrency(detalhesMed.salarioBase)} + Trabalhistas (13º/Férias/1/3) {formatCurrency(detalhesMed.subtotalTrabalhista)} + Encargos (INSS ***%/Adicionais ***%) {formatCurrency(detalhesMed.subtotalEncargos)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* DEMONSTRATIVO CONSOLIDADO DO SEMESTRE */}
-          <div className="p-5 bg-gradient-to-r from-emerald-50 to-slate-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 block">
-                Custo Total do {currentSemestre}º Semestre ({currentSetor}):
+              <span className="text-xl font-bold text-[#117d5d] tabular">
+                {canSalvar ? formatCurrency(custoModulo) : '—'}
               </span>
-              <span className="text-xs text-slate-600 font-medium">
-                Professor ({formatCurrency(custoCalculadoProf)}) + Mediador ({formatCurrency(custoCalculadoMed)})
+              <span className="text-[11px] text-slate-500 ml-2">
+                {canSalvar ? `${formatCurrency(custoModulo / MESES_POR_MODULO)} / mês` : ''}
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-2xl font-bold font-mono text-[#117d5d] tabular">
-                {formatCurrency(custoTotalSemestre)}
-              </span>
-              <span className="text-[11px] text-slate-500 block">
-                Custo mensal médio do semestre: {formatCurrency(custoTotalSemestre / 6)}
-              </span>
-            </div>
-          </div>
 
-          {/* BOTÕES DE AÇÃO ADAPTATIVOS POR ETAPA:
-              - Na etapa de Professor: "Salvar e Continuar para Mediador" (NUNCA pula de semestre).
-              - Na etapa de Mediador: "Salvar Semestre Nº e Avançar" (SÓ PODE pular de semestre se ambos Professor e Mediador estiverem preenchidos e salvos).
-          */}
-          <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-slate-100 gap-3">
-            {activeCargo === 'Professor' ? (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <button
                 type="button"
                 onClick={onCancel}
-                className="btn-unicive-outline text-xs w-full sm:w-auto"
+                className="btn-unicive-outline text-xs py-2 px-3"
               >
-                Cancelar Fluxo
+                Cancelar
               </button>
-            ) : (
-              <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Dados do Professor salvos e travados durante inserção do Mediador</span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-              {activeCargo === 'Professor' ? (
-                <>
-                  <span className="text-[11px] text-slate-600 font-medium text-center sm:text-right">
-                    {!isProfQuantidadeDigitada
-                      ? 'Etapa 1/2: Digite a quantidade de Professor (ou 0 se não houver).'
-                      : numProf > 0 && !cargaHorariaProf
-                      ? 'Etapa 1/2: Selecione a carga horária do Professor.'
-                      : 'Professor preenchido: clique para salvar e ir para o Mediador.'}
-                  </span>
-
-                  <button
-                    type="button"
-                    id="btn-salvar-professor-continuar"
-                    disabled={!canSalvarProfessor}
-                    onClick={handleSalvarProfessorEContinuar}
-                    className={`text-sm px-6 py-3 font-bold rounded-lg transition-all inline-flex items-center justify-center gap-2 w-full sm:w-auto shadow-xs ${
-                      canSalvarProfessor
-                        ? 'btn-unicive-primary cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-75'
-                    }`}
-                    title={
-                      !canSalvarProfessor
-                        ? 'Preencha a quantidade (0 a 10) e a carga horária para continuar'
-                        : 'Salvar dados do Professor e avançar para o Mediador deste semestre'
-                    }
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Salvar e Continuar para Mediador</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="text-[11px] text-slate-600 font-medium text-center sm:text-right">
-                    {!isMedQuantidadeDigitada
-                      ? 'Etapa 2/2: Digite a quantidade de Mediador (ou 0 se não houver).'
-                      : numMed > 0 && !cargaHorariaMed
-                      ? 'Etapa 2/2: Selecione a carga horária do Mediador.'
-                      : 'Ambos preenchidos! Pronto para salvar o semestre e avançar.'}
-                  </span>
-
-                  <button
-                    type="button"
-                    id="btn-salvar-semestre"
-                    disabled={!canSalvarSemestre}
-                    onClick={() => handleSalvarSemestre()}
-                    className={`text-sm px-6 py-3 font-bold rounded-lg transition-all inline-flex items-center justify-center gap-2 w-full sm:w-auto shadow-xs ${
-                      canSalvarSemestre
-                        ? 'btn-unicive-primary cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-75'
-                    }`}
-                    title={
-                      !canSalvarSemestre
-                        ? 'Preencha os dados do Mediador para destravar o salvamento do semestre'
-                        : 'Salvar semestre completo e avançar'
-                    }
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>
-                      {currentSemestre < curso.quantidade_semestres
-                        ? `Salvar Semestre ${currentSemestre}º e Avançar`
-                        : `Salvar Semestre ${currentSemestre}º e Concluir Setor`}
-                    </span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </>
+              {podeAplicarRestantes && (
+                <button
+                  type="button"
+                  id="btn-aplicar-restantes"
+                  disabled={!canSalvar}
+                  onClick={aplicarNosRestantes}
+                  title="Salva estes valores neste módulo e em todos os módulos seguintes"
+                  className={`text-xs font-bold px-3 py-2 rounded-lg border inline-flex items-center justify-center gap-1.5 transition-all ${
+                    canSalvar
+                      ? 'bg-white text-[#117d5d] border-[#239371] hover:bg-[#ebf7f2] cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  }`}
+                >
+                  <ListChecks className="w-3.5 h-3.5" />
+                  Aplicar aos {total - currentModulo + 1} restantes
+                </button>
               )}
+              <button
+                type="submit"
+                id="btn-salvar-modulo"
+                disabled={!canSalvar}
+                className={`text-sm px-4 py-2 font-bold rounded-lg transition-all inline-flex items-center justify-center gap-2 shadow-xs ${
+                  canSalvar
+                    ? 'btn-unicive-primary cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
+                }`}
+              >
+                <Save className="w-4 h-4" />
+                <span>
+                  {setorConcluido
+                    ? `Atualizar Módulo ${currentModulo}`
+                    : currentModulo < total
+                    ? `Salvar e ir p/ Módulo ${currentModulo + 1}`
+                    : 'Salvar e Concluir Setor'}
+                </span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </form>
       </div>
 
-      {/* MODAL: Setor Preenchido com Sucesso */}
+      {/* Módulos já preenchidos: uma linha por módulo */}
+      {concluidos.size > 0 && (
+        <div className="card-unicive overflow-hidden">
+          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+            Módulos preenchidos &bull; {currentSetor}
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-white text-[10px] uppercase text-slate-500 border-b border-slate-100">
+                <tr>
+                  <th className="py-1.5 px-3 text-left">Módulo</th>
+                  <th className="py-1.5 px-2 text-left">Professor</th>
+                  <th className="py-1.5 px-2 text-left">Mediador</th>
+                  <th className="py-1.5 px-3 text-right">Custo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {modulos
+                  .filter((m) => concluidos.has(m))
+                  .map((m) => {
+                    const { prof, med } = registrosDoModulo(m, currentSetor);
+                    const fmt = (r?: RegistroItem) =>
+                      !r ? '—' : r.quantidade === 0 ? '0' : `${r.quantidade} × ${r.carga_horaria}`;
+                    return (
+                      <tr key={m} className={m === currentModulo ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
+                        <td className="py-1 px-3 font-bold text-slate-800">M{m}</td>
+                        <td className="py-1 px-2 tabular text-slate-700">{fmt(prof)}</td>
+                        <td className="py-1 px-2 tabular text-slate-700">{fmt(med)}</td>
+                        <td className="py-1 px-3 text-right font-bold tabular text-slate-900">
+                          {formatCurrency((prof?.custo || 0) + (med?.custo || 0))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Setor concluído / Curso concluído */}
       {showSetorCompletedPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-slate-200 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-slate-200">
             <div className="w-16 h-16 bg-emerald-100 text-[#239371] rounded-2xl flex items-center justify-center mx-auto border border-emerald-300 shadow-md">
               <FileCheck className="w-8 h-8" />
             </div>
 
             <div className="text-center space-y-3">
               <span className="text-[12px] font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider inline-block">
-                ✓ Sucesso
+                ✓ Concluído
               </span>
-              <h2 className="text-2xl font-bold text-slate-900">
-                Setor {showSetorCompletedPopup.setor} Preenchido
-              </h2>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {showSetorCompletedPopup.isPrimeiro ? (
-                  <>
-                    Parabéns! Você completou todos os <strong>{curso.quantidade_semestres} semestres</strong> do setor <strong>{showSetorCompletedPopup.setor}</strong>.
+              {showSetorCompletedPopup.tipo === 'curso' ? (
+                <>
+                  <h2 className="text-2xl font-bold text-slate-900">Curso concluído com sucesso!</h2>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Os setores <strong>Pedagógico</strong> e <strong>Estágio</strong> de{' '}
+                    <strong>{curso.nome_curso}</strong> foram preenchidos em todos os {total} módulos.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-bold text-slate-900">
+                    Setor {showSetorCompletedPopup.setor} concluído!
+                  </h2>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Todos os <strong>{total} módulos</strong> do setor{' '}
+                    <strong>{showSetorCompletedPopup.setor}</strong> foram preenchidos.
                     <br />
                     <br />
-                    <span className="text-xs bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-lg inline-block font-semibold">
-                      ⚠️ O setor <strong>{otherSetor}</strong> foi permanentemente bloqueado para edição. Todas as futuras edições devem ser feitas na aba <strong>Consultar Registros</strong>.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Parabéns! Você completou todos os <strong>{curso.quantidade_semestres} semestres</strong> do setor <strong>{showSetorCompletedPopup.setor}</strong>.
-                  </>
-                )}
-              </p>
+                    O setor <strong>{otherSetor}</strong> ainda não foi preenchido.{' '}
+                    <strong>Deseja preenchê-lo agora?</strong>
+                  </p>
+                </>
+              )}
             </div>
 
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+            {showSetorCompletedPopup.tipo === 'curso' ? (
               <button
                 type="button"
-                id="btn-fechar-popup-setor-preenchido"
+                id="btn-concluir-curso"
                 onClick={() => {
                   setShowSetorCompletedPopup(null);
-                  handleConclude('Setor ' + showSetorCompletedPopup.setor + ' preenchido com sucesso');
+                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`);
                 }}
-                className="btn-unicive-primary flex-1 py-3 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs rounded-lg"
+                className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Retornar ao Início</span>
+                <span>Voltar à Página Inicial</span>
               </button>
-            </div>
-
-            <div className="text-center pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                id="btn-revisar-dados-setor"
-                onClick={() => setShowSetorCompletedPopup(null)}
-                className="text-xs text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer transition-colors"
-              >
-                Revisar dados antes de sair
-              </button>
-            </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  id="btn-preencher-outro-setor-nao"
+                  onClick={() => {
+                    const setor = showSetorCompletedPopup.setor;
+                    setShowSetorCompletedPopup(null);
+                    handleConclude(`Setor ${setor} preenchido com sucesso`);
+                  }}
+                  className="btn-unicive-outline flex-1 py-3 px-4 text-sm font-bold"
+                >
+                  Não, voltar ao início
+                </button>
+                <button
+                  type="button"
+                  id="btn-preencher-outro-setor-sim"
+                  onClick={() => {
+                    setShowSetorCompletedPopup(null);
+                    trocarSetor(otherSetor);
+                  }}
+                  className="btn-unicive-primary flex-1 py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Sim, preencher {otherSetor}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

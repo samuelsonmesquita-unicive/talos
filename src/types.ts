@@ -11,26 +11,26 @@ export interface RegistroItem {
   nome_curso: string;
   grau: Grau;
   setor: Setor;
-  semestre: number;
+  modulo: number; // Módulo trimestral (3 meses)
   cargo: Cargo;
   quantidade: number;
   carga_horaria: CargaHoraria;
   salario: number;
-  custo: number; // quantidade * salario * 6
+  custo: number; // quantidade * salario * 3
   criado_em: string;
   atualizado_em?: string;
 }
 
-export interface SemestreAgregado {
-  semestre: number;
+export interface ModuloAgregado {
+  modulo: number;
   custo_professor: number;
   custo_mediador: number;
-  custo_semestral: number;
-  custo_mensal_semestre: number;
+  custo_modulo: number;
+  custo_mensal_modulo: number;
   professor_salvo: boolean;
   mediador_salvo: boolean;
   concluido: boolean;
-  // Detalhes dos registros existentes neste semestre
+  // Detalhes dos registros existentes neste módulo
   registro_professor?: RegistroItem;
   registro_mediador?: RegistroItem;
 }
@@ -38,10 +38,10 @@ export interface SemestreAgregado {
 export interface SetorAgregado {
   setor: Setor;
   status: SectorStatus;
-  semestres_salvos: number;
+  modulos_salvos: number;
   custo_total: number;
   custo_mensal_medio: number;
-  semestres: SemestreAgregado[];
+  modulos: ModuloAgregado[];
 }
 
 export interface CursoMestre {
@@ -49,7 +49,7 @@ export interface CursoMestre {
   nome_curso: string;
   grau: Grau;
   duracao_curso: number; // Decimal em anos, ex.: 2.5
-  quantidade_semestres: number; // duracao_curso * 2
+  quantidade_modulos: number; // duracao_curso * 4 (módulos trimestrais)
   status_pedagogico: SectorStatus;
   status_estagio: SectorStatus;
   status_geral: StatusGeral;
