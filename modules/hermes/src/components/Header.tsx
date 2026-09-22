@@ -21,8 +21,7 @@ interface HeaderProps {
   onSelectTab: (tab: 'cadastro' | 'consulta' | 'relatorio-curso' | 'relatorio-geral') => void;
   onOpenSalaryModal: () => void;
   onOpenPlutos: () => void;
-  onDownloadRelatorio: () => void;
-  downloadingRelatorio?: boolean;
+  onOpenRelatorio: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,8 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
   onOpenSalaryModal,
   onOpenPlutos,
-  onDownloadRelatorio,
-  downloadingRelatorio = false,
+  onOpenRelatorio,
 }) => {
   const { profile, isAdmin, signOut } = useAuth();
 
@@ -128,16 +126,13 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Ações Técnicas: usam o espaço livre ao lado da logo em vez de disputar com a navegação */}
             <div className="hidden md:flex items-center gap-2 pl-3 ml-1 border-l border-slate-200 min-w-0">
               <button
-                id="btn-baixar-relatorio-executivo"
-                onClick={onDownloadRelatorio}
-                disabled={downloadingRelatorio}
-                title="Baixar Relatório Executivo (CSV) — todos os cursos com Ponto de Equilíbrio calculado no Plutos"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#e7972a] bg-[#fef5ea] hover:bg-[#fdecd4] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg border border-[#e7972a]/25 transition-colors cursor-pointer whitespace-nowrap"
+                id="btn-ver-relatorio-executivo"
+                onClick={onOpenRelatorio}
+                title="Ver e baixar Relatório Executivo — todos os cursos com Ponto de Equilíbrio calculado no Plutos"
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#e7972a] bg-[#fef5ea] hover:bg-[#fdecd4] px-2.5 py-1.5 rounded-lg border border-[#e7972a]/25 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Download className="w-3.5 h-3.5 text-[#e7972a] shrink-0" />
-                <span className="whitespace-nowrap">
-                  {downloadingRelatorio ? 'Gerando...' : 'Relatório'}
-                </span>
+                <span className="whitespace-nowrap">Relatório</span>
               </button>
 
               <button
@@ -277,10 +272,9 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="whitespace-nowrap">Plutos</span>
           </button>
           <button
-            onClick={onDownloadRelatorio}
-            disabled={downloadingRelatorio}
-            title="Baixar Relatório Executivo (CSV)"
-            className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] disabled:opacity-50 transition-colors cursor-pointer"
+            onClick={onOpenRelatorio}
+            title="Ver e baixar Relatório Executivo"
+            className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
             <span className="whitespace-nowrap">Relatório</span>
