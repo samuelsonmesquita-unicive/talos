@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { CursoMestre, PlutosResultado } from './types';
 import { CourseSelector } from './components/CourseSelector';
 import { InputsForm } from './components/InputsForm';
 import { ResultPanel } from './components/ResultPanel';
-import { fetchCursosComCusto, fetchInputsPorCurso, upsertInputs } from './services/plutosService';
+import { RelatorioExecutivo } from './components/RelatorioExecutivo';
+import {
+  fetchCursosComCusto,
+  fetchInputsPorCurso,
+  upsertInputs,
+  fetchCursoIdsComInputs,
+} from './services/plutosService';
 
 // Quando chamado de dentro de um <iframe> do Hermes: ?curso_id=<id>&embed=1
 const urlParams = new URLSearchParams(window.location.search);
@@ -13,6 +19,9 @@ const IS_EMBED = urlParams.get('embed') === '1';
 const IS_IFRAMED = typeof window !== 'undefined' && window.self !== window.top;
 
 export default function App() {
+  const [view, setView] = useState<'form' | 'relatorio'>('form');
+  const [mensagemRelatorio, setMensagemRelatorio] = useState<string | null>(null);
+
   const [cursos, setCursos] = useState<CursoMestre[]>([]);
   const [selectedCursoId, setSelectedCursoId] = useState<string | null>(PRESET_CURSO_ID);
   const [quantidadeDisciplinas, setQuantidadeDisciplinas] = useState(0);
@@ -86,6 +95,20 @@ export default function App() {
     try {
       const res = await upsertInputs(selectedCursoId, qty, ticket);
       setResultado(res);
+
+      // Se este era o ÚLTIMO curso completo no Hermes que ainda não tinha
+      // Ponto de Equilíbrio calculado, encerra o fluxo direto no relatório.
+      const idsComInputs = await fetchCursoIdsComInputs();
+      idsComInputs.add(selectedCursoId);
+      const pendentes = cursos.filter(
+        (c) => c.status_geral === 'completo' && !idsComInputs.has(c.id)
+      );
+      if (pendentes.length === 0) {
+        setMensagemRelatorio(
+          'Todos os cursos completos no Hermes já têm o Ponto de Equilíbrio calculado.'
+        );
+        setView('relatorio');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido ao calcular.';
       setErrorCalc(message);
@@ -114,77 +137,102 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="space-y-6">
-          {/* Seleção de Curso — colapsada quando já veio pré-selecionada do Hermes */}
-          {IS_EMBED && PRESET_CURSO_ID && selectedCurso ? (
-            <div className="text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
-              Calculando viabilidade para: <strong className="text-slate-900">{selectedCurso.nome_curso} ({selectedCurso.grau})</strong>
+      <main className={`flex-1 w-full mx-auto p-4 sm:p-6 lg:p-8 ${view === 'relatorio' ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        {view === 'relatorio' ? (
+          <RelatorioExecutivo
+            onVoltar={() => {
+              setMensagemRelatorio(null);
+              setView('form');
+            }}
+            onConcluirHermes={IS_IFRAMED ? handleConcluirEVoltar : undefined}
+            mensagemContexto={mensagemRelatorio || undefined}
+          />
+        ) : (
+          <div className="space-y-6">
+            {/* Link de acesso ao relatório, sempre disponível */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setView('relatorio')}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] hover:text-[#117d5d] cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Ver Relatório Executivo (todos os cursos)
+              </button>
             </div>
-          ) : (
-            <section>
-              <h2 className="text-sm font-bold text-slate-900 mb-3">Passo 1: Selecione um Curso</h2>
-              <CourseSelector
-                cursos={cursos}
-                selectedCursoId={selectedCursoId}
-                onSelect={setSelectedCursoId}
-                loading={loadingCursos}
-                error={errorCursos}
-              />
-            </section>
-          )}
 
-          {/* Inputs e Cálculo */}
-          {selectedCurso && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-900">Passo 2: Preencha os Dados</h2>
-                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                  {selectedCurso.nome_curso} ({selectedCurso.grau})
-                </span>
+            {/* Seleção de Curso — colapsada quando já veio pré-selecionada do Hermes */}
+            {IS_EMBED && PRESET_CURSO_ID && selectedCurso ? (
+              <div className="text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
+                Calculando viabilidade para: <strong className="text-slate-900">{selectedCurso.nome_curso} ({selectedCurso.grau})</strong>
               </div>
-              <InputsForm
-                quantidadeDisciplinas={quantidadeDisciplinas}
-                ticketMedio={ticketMedio}
-                onQuantidadeChange={setQuantidadeDisciplinas}
-                onTicketChange={setTicketMedio}
-                onSubmit={handleCalculate}
-                loading={loadingCalc}
-                error={errorCalc}
-                disabled={!selectedCurso}
-              />
-            </section>
-          )}
+            ) : (
+              <section>
+                <h2 className="text-sm font-bold text-slate-900 mb-3">Passo 1: Selecione um Curso</h2>
+                <CourseSelector
+                  cursos={cursos}
+                  selectedCursoId={selectedCursoId}
+                  onSelect={setSelectedCursoId}
+                  loading={loadingCursos}
+                  error={errorCursos}
+                />
+              </section>
+            )}
 
-          {/* Resultado */}
-          {selectedCurso && (
-            <section className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-900">Passo 3: Resultado</h2>
-              <ResultPanel resultado={resultado} loading={loadingCalc} />
+            {/* Inputs e Cálculo */}
+            {selectedCurso && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900">Passo 2: Preencha os Dados</h2>
+                  <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                    {selectedCurso.nome_curso} ({selectedCurso.grau})
+                  </span>
+                </div>
+                <InputsForm
+                  quantidadeDisciplinas={quantidadeDisciplinas}
+                  ticketMedio={ticketMedio}
+                  onQuantidadeChange={setQuantidadeDisciplinas}
+                  onTicketChange={setTicketMedio}
+                  onSubmit={handleCalculate}
+                  loading={loadingCalc}
+                  error={errorCalc}
+                  disabled={!selectedCurso}
+                />
+              </section>
+            )}
 
-              {/* Botão de conclusão — só faz sentido quando embutido no fluxo do Hermes */}
-              {IS_EMBED && IS_IFRAMED && resultado && (
-                <button
-                  type="button"
-                  onClick={handleConcluirEVoltar}
-                  className="w-full btn-unicive-primary text-sm font-semibold py-2.5 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Concluir e voltar ao Hermes
-                </button>
-              )}
-            </section>
-          )}
+            {/* Resultado */}
+            {selectedCurso && (
+              <section className="space-y-4">
+                <h2 className="text-sm font-bold text-slate-900">Passo 3: Resultado</h2>
+                <ResultPanel resultado={resultado} loading={loadingCalc} />
 
-          {/* Hint quando nada selecionado */}
-          {!selectedCurso && cursos.length > 0 && (
-            <div className="p-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
-              <p>
-                👆 Selecione um curso acima para começar a análise de viabilidade financeira.
-              </p>
-            </div>
-          )}
-        </div>
+                {/* Botão de conclusão — só faz sentido quando embutido no fluxo do Hermes.
+                    Se este era o último curso pendente, o handleCalculate já trocou a view
+                    pra 'relatorio' e este botão nem chega a aparecer. */}
+                {IS_EMBED && IS_IFRAMED && resultado && (
+                  <button
+                    type="button"
+                    onClick={handleConcluirEVoltar}
+                    className="w-full btn-unicive-primary text-sm font-semibold py-2.5 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Concluir e voltar ao Hermes
+                  </button>
+                )}
+              </section>
+            )}
+
+            {/* Hint quando nada selecionado */}
+            {!selectedCurso && cursos.length > 0 && (
+              <div className="p-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+                <p>
+                  👆 Selecione um curso acima para começar a análise de viabilidade financeira.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Footer */}
