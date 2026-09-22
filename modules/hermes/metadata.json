@@ -1,6 +1,0 @@
-{
-  "name": "Gestão de Demandas de Cursos",
-  "description": "Sistema de registro, dimensionamento de carga horária e cálculo de custos para setores Pedagógico e Estágio de cursos superiores.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
