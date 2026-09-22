@@ -9,6 +9,7 @@ import { ConsultRecordsView } from './components/ConsultRecordsView';
 import { CourseReportView } from './components/CourseReportView';
 import { GeneralReportDashboard } from './components/GeneralReportDashboard';
 import { PlutosEmbedPanel } from './components/PlutosEmbedPanel';
+import { fetchRelatorioExecutivo, exportRelatorioCSV } from './services/relatorioService';
 import { initializeCloudDatabase, saveAllCourses, saveAllRegistros } from './services/courseStore';
 import {
   subscribeToCourses,
@@ -92,6 +93,25 @@ export default function App() {
   // livre pela barra superior, sem curso pré-selecionado)
   const [plutosPanelOpen, setPlutosPanelOpen] = useState(false);
   const [plutosPromptCurso, setPlutosPromptCurso] = useState<CursoMestre | null>(null);
+  const [downloadingRelatorio, setDownloadingRelatorio] = useState(false);
+
+  const handleDownloadRelatorio = async () => {
+    setDownloadingRelatorio(true);
+    try {
+      const linhas = await fetchRelatorioExecutivo();
+      if (linhas.length === 0) {
+        showQuickToast('Nenhum curso com Ponto de Equilíbrio calculado no Plutos ainda.', 'error');
+        return;
+      }
+      exportRelatorioCSV(linhas);
+      showQuickToast('Relatório Executivo baixado com sucesso');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao gerar relatório.';
+      showQuickToast(message, 'error');
+    } finally {
+      setDownloadingRelatorio(false);
+    }
+  };
 
   // Inicialização e listeners em tempo real com o Supabase
   useEffect(() => {
@@ -213,6 +233,8 @@ export default function App() {
           setPlutosPromptCurso(null);
           setPlutosPanelOpen(true);
         }}
+        onDownloadRelatorio={handleDownloadRelatorio}
+        downloadingRelatorio={downloadingRelatorio}
       />
 
       {/* Conteúdo Principal Dinâmico por Aba */}
