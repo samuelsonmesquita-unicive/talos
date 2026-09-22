@@ -3,7 +3,9 @@ import { X, TrendingUp } from 'lucide-react';
 import { CursoMestre } from '../types';
 
 interface PlutosEmbedPanelProps {
-  curso: CursoMestre;
+  // Sem curso: o painel abre com a própria seleção de curso do Plutos (acesso
+  // livre via o botão da barra superior, não vinculado a um curso específico).
+  curso: CursoMestre | null;
   onClose: () => void;
   onConcluded: () => void;
 }
@@ -35,7 +37,9 @@ export const PlutosEmbedPanel: React.FC<PlutosEmbedPanelProps> = ({ curso, onClo
     return () => window.removeEventListener('message', handleMessage);
   }, [onConcluded]);
 
-  const iframeSrc = `${PLUTOS_BASE_URL}?curso_id=${encodeURIComponent(curso.id)}&embed=1`;
+  const iframeSrc = curso
+    ? `${PLUTOS_BASE_URL}?curso_id=${encodeURIComponent(curso.id)}&embed=1`
+    : `${PLUTOS_BASE_URL}?embed=1`;
 
   return (
     <div
@@ -53,10 +57,12 @@ export const PlutosEmbedPanel: React.FC<PlutosEmbedPanelProps> = ({ curso, onClo
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#e7972a]">
-                Próximo passo &bull; Módulo Plutos
+                {curso ? 'Próximo passo' : 'Acesso direto'} &bull; Módulo Plutos
               </p>
               <h3 className="text-sm font-bold truncate">
-                Viabilidade financeira: {curso.nome_curso} ({curso.grau})
+                {curso
+                  ? `Viabilidade financeira: ${curso.nome_curso} (${curso.grau})`
+                  : 'Viabilidade & Custo — Ponto de Equilíbrio'}
               </h3>
             </div>
           </div>

@@ -88,7 +88,9 @@ export default function App() {
   // Status de conexão com a nuvem (Supabase)
   const [cloudStatus, setCloudStatus] = useState<'conectando' | 'conectado' | 'offline'>('conectando');
 
-  // Curso para o qual exibir o painel embutido do Plutos (próximo passo do fluxo)
+  // Painel embutido do Plutos: aberto/fechado + curso de contexto (null = acesso
+  // livre pela barra superior, sem curso pré-selecionado)
+  const [plutosPanelOpen, setPlutosPanelOpen] = useState(false);
   const [plutosPromptCurso, setPlutosPromptCurso] = useState<CursoMestre | null>(null);
 
   // Inicialização e listeners em tempo real com o Supabase
@@ -175,6 +177,7 @@ export default function App() {
 
     if (cursoCompleto && finishedRegistration) {
       setPlutosPromptCurso(finishedRegistration.curso);
+      setPlutosPanelOpen(true);
     }
   };
 
@@ -206,6 +209,10 @@ export default function App() {
         cloudStatus={cloudStatus}
         onSelectTab={handleSelectTab}
         onOpenSalaryModal={() => setIsSalaryModalOpen(true)}
+        onOpenPlutos={() => {
+          setPlutosPromptCurso(null);
+          setPlutosPanelOpen(true);
+        }}
       />
 
       {/* Conteúdo Principal Dinâmico por Aba */}
@@ -261,7 +268,10 @@ export default function App() {
             initialCourse={targetCourse || undefined}
             onSelectCourseForFlow={handleStartRegistration}
             onGoToConsult={handleGoToConsult}
-            onOpenPlutos={(curso) => setPlutosPromptCurso(curso)}
+            onOpenPlutos={(curso) => {
+              setPlutosPromptCurso(curso);
+              setPlutosPanelOpen(true);
+            }}
           />
         )}
 
@@ -362,13 +372,14 @@ export default function App() {
         onConfigUpdated={() => setRefreshKey((k) => k + 1)}
       />
 
-      {/* Painel embutido do Plutos — próximo passo após concluir um curso no Hermes */}
-      {plutosPromptCurso && (
+      {/* Painel embutido do Plutos — próximo passo após concluir um curso, ou acesso
+          livre pela barra superior */}
+      {plutosPanelOpen && (
         <PlutosEmbedPanel
           curso={plutosPromptCurso}
-          onClose={() => setPlutosPromptCurso(null)}
+          onClose={() => setPlutosPanelOpen(false)}
           onConcluded={() => {
-            setPlutosPromptCurso(null);
+            setPlutosPanelOpen(false);
             showQuickToast('Viabilidade financeira calculada no Plutos!');
           }}
         />

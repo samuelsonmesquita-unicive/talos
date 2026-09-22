@@ -10,6 +10,7 @@ import {
   CloudCheck,
   Lock,
   LogOut,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -18,6 +19,7 @@ interface HeaderProps {
   cloudStatus?: 'conectando' | 'conectado' | 'offline';
   onSelectTab: (tab: 'cadastro' | 'consulta' | 'relatorio-curso' | 'relatorio-geral') => void;
   onOpenSalaryModal: () => void;
+  onOpenPlutos: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   cloudStatus = 'conectado',
   onSelectTab,
   onOpenSalaryModal,
+  onOpenPlutos,
 }) => {
   const { profile, isAdmin, signOut } = useAuth();
 
@@ -179,6 +182,16 @@ export const Header: React.FC<HeaderProps> = ({
               <BarChart3 className="w-4 h-4 shrink-0" />
               <span className="whitespace-nowrap">Painel Geral</span>
             </button>
+
+            <button
+              id="tab-btn-plutos"
+              onClick={onOpenPlutos}
+              title="Abrir módulo Plutos — Viabilidade & Custo"
+              className="h-full flex items-center gap-2 px-3.5 border-b-2 border-transparent whitespace-nowrap transition-colors cursor-pointer text-[#e7972a] hover:text-[#d28117] hover:bg-[#fef5ea]"
+            >
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Plutos &bull; Viabilidade</span>
+            </button>
           </nav>
 
           {/* Ações Técnicas */}
@@ -241,6 +254,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BarChart3 className="w-3.5 h-3.5 shrink-0" />
             <span className="whitespace-nowrap">Painel Geral</span>
+          </button>
+          <button
+            onClick={onOpenPlutos}
+            className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] transition-colors cursor-pointer"
+          >
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">Plutos</span>
           </button>
         </div>
       </div>
