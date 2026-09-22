@@ -6,7 +6,7 @@ interface InputsFormProps {
   ticketMedio: number;
   onQuantidadeChange: (qty: number) => void;
   onTicketChange: (ticket: number) => void;
-  onSubmit: () => Promise<void>;
+  onSubmit: (quantidadeDisciplinas: number, ticketMedio: number) => Promise<void>;
   loading?: boolean;
   error?: string | null;
   disabled?: boolean;
@@ -68,7 +68,7 @@ export const InputsForm: React.FC<InputsFormProps> = ({
     onTicketChange(ticket);
 
     try {
-      await onSubmit();
+      await onSubmit(qty, ticket);
     } catch (err) {
       // Erro é tratado pelo componente pai
     }

@@ -77,14 +77,14 @@ export default function App() {
       });
   }, [selectedCursoId]);
 
-  const handleCalculate = async () => {
+  const handleCalculate = async (qty: number, ticket: number) => {
     if (!selectedCursoId) return;
 
     setLoadingCalc(true);
     setErrorCalc(null);
 
     try {
-      const res = await upsertInputs(selectedCursoId, quantidadeDisciplinas, ticketMedio);
+      const res = await upsertInputs(selectedCursoId, qty, ticket);
       setResultado(res);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido ao calcular.';

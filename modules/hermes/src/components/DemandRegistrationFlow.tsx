@@ -34,9 +34,11 @@ interface DemandRegistrationFlowProps {
   initialSetor?: Setor;
   setorInicial?: Setor;
   isRetomada?: boolean;
-  // Supports onConcludeSector and onConclude with optional toast message
-  onConcludeSector?: (toastMsg?: string) => void;
-  onConclude?: (toastMsg?: string) => void;
+  // Supports onConcludeSector and onConclude with optional toast message.
+  // cursoCompleto = true quando ESTE ato de conclusão deixou o curso 100% completo
+  // (Pedagógico + Estágio), para o app-shell decidir se abre o próximo passo (Plutos).
+  onConcludeSector?: (toastMsg?: string, cursoCompleto?: boolean) => void;
+  onConclude?: (toastMsg?: string, cursoCompleto?: boolean) => void;
   onCancel?: () => void;
   onGoToConsult?: () => void;
   onGoToReport?: (curso: CursoMestre) => void;
@@ -166,9 +168,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   const total = curso.quantidade_modulos;
   const resolvedInitialSetor: Setor = setorInicial || initialSetor;
 
-  const handleConclude = (toastMsg?: string) => {
-    if (onConcludeSector) onConcludeSector(toastMsg);
-    else if (onConclude) onConclude(toastMsg);
+  const handleConclude = (toastMsg?: string, cursoCompleto?: boolean) => {
+    if (onConcludeSector) onConcludeSector(toastMsg, cursoCompleto);
+    else if (onConclude) onConclude(toastMsg, cursoCompleto);
   };
 
   const [currentSetor, setCurrentSetor] = useState<Setor>(resolvedInitialSetor);
@@ -740,7 +742,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 id="btn-concluir-curso"
                 onClick={() => {
                   setShowSetorCompletedPopup(null);
-                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`);
+                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`, true);
                 }}
                 className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -755,7 +757,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   onClick={() => {
                     const setor = showSetorCompletedPopup.setor;
                     setShowSetorCompletedPopup(null);
-                    handleConclude(`Setor ${setor} preenchido com sucesso`);
+                    handleConclude(`Setor ${setor} preenchido com sucesso`, false);
                   }}
                   className="btn-unicive-outline flex-1 py-3 px-4 text-sm font-bold"
                 >
