@@ -126,6 +126,27 @@ export const RelatorioPreviewModal: React.FC<RelatorioPreviewModalProps> = ({ is
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-[#ebf7f2] border-t-2 border-[#239371] font-bold text-slate-900">
+                  <td className="p-3 whitespace-nowrap" colSpan={4}>TOTAL</td>
+                  <td className="p-3 text-right tabular">
+                    {linhas.reduce((s, l) => s + l.total_professores, 0)}
+                  </td>
+                  <td className="p-3 text-right tabular">
+                    {linhas.reduce((s, l) => s + l.total_mediadores, 0)}
+                  </td>
+                  <td className="p-3 text-right tabular whitespace-nowrap">
+                    {fmtMoeda(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}
+                  </td>
+                  <td className="p-3 text-right tabular whitespace-nowrap">
+                    {fmtMoeda(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}
+                  </td>
+                  <td className="p-3" colSpan={2}></td>
+                  <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
+                    {linhas.reduce((s, l) => s + l.ponto_equilibrio, 0)} alunos
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>

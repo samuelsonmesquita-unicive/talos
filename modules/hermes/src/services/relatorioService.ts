@@ -116,7 +116,36 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       .join(';')
   );
 
-  const csv = '﻿' + [cabecalho.join(';'), ...linhasCsv].join('\r\n');
+  // Linha final com a soma de professores, mediadores, custo mensal e custo total
+  const totais = linhas.reduce(
+    (acc, l) => ({
+      professores: acc.professores + l.total_professores,
+      mediadores: acc.mediadores + l.total_mediadores,
+      custoMensal: acc.custoMensal + l.custo_mensal_medio_curso,
+      custoTotal: acc.custoTotal + l.custo_total_curso,
+      pontoEquilibrio: acc.pontoEquilibrio + l.ponto_equilibrio,
+    }),
+    { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, pontoEquilibrio: 0 }
+  );
+
+  const linhaTotal = [
+    'TOTAL',
+    '',
+    '',
+    '',
+    totais.professores,
+    totais.mediadores,
+    fmt(totais.custoMensal),
+    fmt(totais.custoTotal),
+    '',
+    '',
+    totais.pontoEquilibrio,
+    '',
+  ]
+    .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+    .join(';');
+
+  const csv = '﻿' + [cabecalho.join(';'), ...linhasCsv, linhaTotal].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
