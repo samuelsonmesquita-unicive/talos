@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   Users,
   UserCheck,
+  TrendingUp,
 } from 'lucide-react';
 
 interface CourseReportViewProps {
@@ -22,6 +23,7 @@ interface CourseReportViewProps {
   onContinueRegistration?: (curso: CursoMestre) => void;
   onSelectCourseForFlow?: (curso: CursoMestre, setor: any, retomada: boolean) => void;
   onGoToConsult?: (curso: CursoMestre) => void;
+  onOpenPlutos?: (curso: CursoMestre) => void;
 }
 
 export const CourseReportView: React.FC<CourseReportViewProps> = ({
@@ -29,6 +31,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
   onContinueRegistration,
   onSelectCourseForFlow,
   onGoToConsult,
+  onOpenPlutos,
 }) => {
   const courses = getAllCourses();
   const [selectedCourseKey, setSelectedCourseKey] = useState<string>(
@@ -122,6 +125,17 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
               ))}
             </select>
           </div>
+
+          {onOpenPlutos && activeCourse.status_geral === 'completo' && (
+            <button
+              onClick={() => onOpenPlutos(activeCourse)}
+              title="Calcular Ponto de Equilíbrio no Plutos"
+              className="btn-unicive-primary text-xs py-2.5 px-3 cursor-pointer print:hidden"
+            >
+              <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Calcular Viabilidade</span>
+            </button>
+          )}
 
           <button
             onClick={handlePrint}

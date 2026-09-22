@@ -54,25 +54,3 @@ export async function upsertInputs(
   };
 }
 
-export function subscribeToInputs(
-  cursoId: string,
-  callback: (data: PlutosResultado) => void
-): () => void {
-  const subscription = supabase
-    .from(`plutos_inputs_curso:curso_id=eq.${cursoId}`)
-    .on('*', (payload) => {
-      if (payload.new) {
-        callback({
-          curso_id: payload.new.curso_id,
-          ponto_equilibrio: payload.new.ponto_equilibrio,
-          investimento_disciplinas: payload.new.investimento_disciplinas,
-          dados_hermes_parciais: payload.new.dados_hermes_parciais,
-        });
-      }
-    })
-    .subscribe();
-
-  return () => {
-    subscription.unsubscribe();
-  };
-}

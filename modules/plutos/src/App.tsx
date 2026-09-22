@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { CursoMestre, PlutosResultado } from './types';
 import { CourseSelector } from './components/CourseSelector';
 import { InputsForm } from './components/InputsForm';
 import { ResultPanel } from './components/ResultPanel';
 import { fetchCursosComCusto, fetchInputsPorCurso, upsertInputs } from './services/plutosService';
 
+// Quando chamado de dentro de um <iframe> do Hermes: ?curso_id=<id>&embed=1
+const urlParams = new URLSearchParams(window.location.search);
+const PRESET_CURSO_ID = urlParams.get('curso_id');
+const IS_EMBED = urlParams.get('embed') === '1';
+const IS_IFRAMED = typeof window !== 'undefined' && window.self !== window.top;
+
 export default function App() {
   const [cursos, setCursos] = useState<CursoMestre[]>([]);
-  const [selectedCursoId, setSelectedCursoId] = useState<string | null>(null);
+  const [selectedCursoId, setSelectedCursoId] = useState<string | null>(PRESET_CURSO_ID);
   const [quantidadeDisciplinas, setQuantidadeDisciplinas] = useState(0);
   const [ticketMedio, setTicketMedio] = useState(0);
   const [resultado, setResultado] = useState<PlutosResultado | null>(null);
@@ -30,6 +36,12 @@ export default function App() {
       })
       .finally(() => setLoadingCursos(false));
   }, []);
+
+  const handleConcluirEVoltar = () => {
+    if (IS_IFRAMED && selectedCursoId) {
+      window.parent.postMessage({ type: 'plutos:done', curso_id: selectedCursoId }, '*');
+    }
+  };
 
   // Carregar inputs quando cursos são selecionados
   useEffect(() => {
@@ -86,33 +98,41 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f8f6] text-[#212327] flex flex-col font-sans antialiased">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-[#0d281e] to-[#143529] text-white p-4 sm:p-6">
-        <div className="max-w-6xl mx-auto">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#e7972a]">
-            Projeto Talos &bull; Módulo Plutos
-          </span>
-          <h1 className="text-2xl font-bold mt-1">Viabilidade &amp; Custo</h1>
-          <p className="text-xs text-emerald-100/80 mt-1">
-            Análise de Ponto de Equilíbrio e Viabilidade Financeira
-          </p>
-        </div>
-      </header>
+      {/* Header institucional — escondido quando embutido no Hermes (o Hermes já mostra o próprio cabeçalho) */}
+      {!IS_EMBED && (
+        <header className="bg-gradient-to-r from-[#0d281e] to-[#143529] text-white p-4 sm:p-6">
+          <div className="max-w-6xl mx-auto">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#e7972a]">
+              Projeto Talos &bull; Módulo Plutos
+            </span>
+            <h1 className="text-2xl font-bold mt-1">Viabilidade &amp; Custo</h1>
+            <p className="text-xs text-emerald-100/80 mt-1">
+              Análise de Ponto de Equilíbrio e Viabilidade Financeira
+            </p>
+          </div>
+        </header>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         <div className="space-y-6">
-          {/* Seleção de Curso */}
-          <section>
-            <h2 className="text-sm font-bold text-slate-900 mb-3">Passo 1: Selecione um Curso</h2>
-            <CourseSelector
-              cursos={cursos}
-              selectedCursoId={selectedCursoId}
-              onSelect={setSelectedCursoId}
-              loading={loadingCursos}
-              error={errorCursos}
-            />
-          </section>
+          {/* Seleção de Curso — colapsada quando já veio pré-selecionada do Hermes */}
+          {IS_EMBED && PRESET_CURSO_ID && selectedCurso ? (
+            <div className="text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
+              Calculando viabilidade para: <strong className="text-slate-900">{selectedCurso.nome_curso} ({selectedCurso.grau})</strong>
+            </div>
+          ) : (
+            <section>
+              <h2 className="text-sm font-bold text-slate-900 mb-3">Passo 1: Selecione um Curso</h2>
+              <CourseSelector
+                cursos={cursos}
+                selectedCursoId={selectedCursoId}
+                onSelect={setSelectedCursoId}
+                loading={loadingCursos}
+                error={errorCursos}
+              />
+            </section>
+          )}
 
           {/* Inputs e Cálculo */}
           {selectedCurso && (
@@ -141,6 +161,18 @@ export default function App() {
             <section className="space-y-4">
               <h2 className="text-sm font-bold text-slate-900">Passo 3: Resultado</h2>
               <ResultPanel resultado={resultado} loading={loadingCalc} />
+
+              {/* Botão de conclusão — só faz sentido quando embutido no fluxo do Hermes */}
+              {IS_EMBED && IS_IFRAMED && resultado && (
+                <button
+                  type="button"
+                  onClick={handleConcluirEVoltar}
+                  className="w-full btn-unicive-primary text-sm font-semibold py-2.5 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Concluir e voltar ao Hermes
+                </button>
+              )}
             </section>
           )}
 
@@ -156,13 +188,15 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
-        <div className="max-w-6xl mx-auto px-4">
-          <p>
-            &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Análise de Viabilidade Financeira
-          </p>
-        </div>
-      </footer>
+      {!IS_EMBED && (
+        <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
+          <div className="max-w-6xl mx-auto px-4">
+            <p>
+              &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Análise de Viabilidade Financeira
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

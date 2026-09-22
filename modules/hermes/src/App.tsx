@@ -8,6 +8,7 @@ import { DemandRegistrationFlow } from './components/DemandRegistrationFlow';
 import { ConsultRecordsView } from './components/ConsultRecordsView';
 import { CourseReportView } from './components/CourseReportView';
 import { GeneralReportDashboard } from './components/GeneralReportDashboard';
+import { PlutosEmbedPanel } from './components/PlutosEmbedPanel';
 import { initializeCloudDatabase, saveAllCourses, saveAllRegistros } from './services/courseStore';
 import {
   subscribeToCourses,
@@ -87,6 +88,9 @@ export default function App() {
   // Status de conexão com a nuvem (Supabase)
   const [cloudStatus, setCloudStatus] = useState<'conectando' | 'conectado' | 'offline'>('conectando');
 
+  // Curso para o qual exibir o painel embutido do Plutos (próximo passo do fluxo)
+  const [plutosPromptCurso, setPlutosPromptCurso] = useState<CursoMestre | null>(null);
+
   // Inicialização e listeners em tempo real com o Supabase
   useEffect(() => {
     let isMounted = true;
@@ -161,10 +165,23 @@ export default function App() {
 
   // Conclusão de um setor
   const handleConcludeSector = (msg?: string) => {
+    const finishedRegistration = activeRegistration;
     setActiveRegistration(null);
     setActiveTab('cadastro');
     setRefreshKey((k) => k + 1);
     showQuickToast(msg || 'Registro concluído');
+
+    // Se o OUTRO setor do curso já estava completo antes deste fluxo, o curso
+    // acabou de ficar 100% completo agora — abre o próximo passo (Plutos).
+    if (finishedRegistration) {
+      const outroSetorStatus =
+        finishedRegistration.setor === 'Pedagógico'
+          ? finishedRegistration.curso.status_estagio
+          : finishedRegistration.curso.status_pedagogico;
+      if (outroSetorStatus === 'completo') {
+        setPlutosPromptCurso(finishedRegistration.curso);
+      }
+    }
   };
 
   // Cancelar ou voltar da tela de preenchimento
@@ -250,6 +267,7 @@ export default function App() {
             initialCourse={targetCourse || undefined}
             onSelectCourseForFlow={handleStartRegistration}
             onGoToConsult={handleGoToConsult}
+            onOpenPlutos={(curso) => setPlutosPromptCurso(curso)}
           />
         )}
 
@@ -349,6 +367,18 @@ export default function App() {
         onClose={() => setIsSalaryModalOpen(false)}
         onConfigUpdated={() => setRefreshKey((k) => k + 1)}
       />
+
+      {/* Painel embutido do Plutos — próximo passo após concluir um curso no Hermes */}
+      {plutosPromptCurso && (
+        <PlutosEmbedPanel
+          curso={plutosPromptCurso}
+          onClose={() => setPlutosPromptCurso(null)}
+          onConcluded={() => {
+            setPlutosPromptCurso(null);
+            showQuickToast('Viabilidade financeira calculada no Plutos!');
+          }}
+        />
+      )}
 
       {/* Popup Rápido de Notificação (Toast) */}
       {toastMessage && (
