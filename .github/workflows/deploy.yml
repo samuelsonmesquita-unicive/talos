@@ -39,11 +39,23 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
+      - name: Install dependencies (Plutos)
+        working-directory: modules/plutos
+        run: bun install
+
+      - name: Build Plutos
+        working-directory: modules/plutos
+        run: bun run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
       # Um único site do Pages abriga todos os módulos: /talos/ (portal) e /talos/<modulo>/
       - name: Assemble site
         run: |
-          mkdir -p site/hermes
+          mkdir -p site/hermes site/plutos
           cp -r modules/hermes/dist/. site/hermes/
+          cp -r modules/plutos/dist/. site/plutos/
           cp portal/index.html site/index.html
 
       - name: Setup Pages
