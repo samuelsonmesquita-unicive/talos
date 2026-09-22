@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, DollarSign } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { PlutosResultado } from '../types';
 
 interface ResultPanelProps {
@@ -24,7 +24,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ resultado, loading = f
     return null;
   }
 
-  const investimento = resultado.investimento_disciplinas;
   const pe = resultado.ponto_equilibrio;
 
   return (
@@ -48,20 +47,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ resultado, loading = f
           </div>
         )}
 
-        {/* Investimento */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-slate-600">
-            <DollarSign className="w-4 h-4 text-[#e7972a]" />
-            <span className="text-xs font-semibold">Investimento em Disciplinas</span>
-          </div>
-          <div className="text-3xl font-bold text-[#0d281e] font-mono">
-            R$ {investimento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-xs text-slate-500">Valor a ser investido na produção das disciplinas (ativo).</p>
-        </div>
-
         {/* Ponto de Equilíbrio */}
-        <div className="space-y-2 pt-4 border-t border-[#e2e8e4]">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-slate-600">
             <TrendingUp className="w-4 h-4 text-[#239371]" />
             <span className="text-xs font-semibold">Ponto de Equilíbrio</span>

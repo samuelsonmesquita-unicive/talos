@@ -12,9 +12,6 @@ interface InputsFormProps {
   disabled?: boolean;
 }
 
-const CUSTO_DISCIPLINA = 5445.25;
-const CUSTO_VARIAVEL_ALUNO = 5.00;
-
 export const InputsForm: React.FC<InputsFormProps> = ({
   quantidadeDisciplinas,
   ticketMedio,
@@ -25,20 +22,17 @@ export const InputsForm: React.FC<InputsFormProps> = ({
   error = null,
   disabled = false,
 }) => {
-  const [localQty, setLocalQty] = useState(quantidadeDisciplinas.toString());
-  const [localTicket, setLocalTicket] = useState(ticketMedio.toString());
+  const [localQty, setLocalQty] = useState(quantidadeDisciplinas > 0 ? quantidadeDisciplinas.toString() : '');
+  const [localTicket, setLocalTicket] = useState(ticketMedio > 0 ? ticketMedio.toString() : '');
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLocalQty(quantidadeDisciplinas.toString());
+    setLocalQty(quantidadeDisciplinas > 0 ? quantidadeDisciplinas.toString() : '');
   }, [quantidadeDisciplinas]);
 
   useEffect(() => {
-    setLocalTicket(ticketMedio.toString());
+    setLocalTicket(ticketMedio > 0 ? ticketMedio.toString() : '');
   }, [ticketMedio]);
-
-  const investimento = parseInt(localQty, 10) * CUSTO_DISCIPLINA;
-  const isValidTicket = parseFloat(localTicket) > CUSTO_VARIAVEL_ALUNO;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,13 +48,6 @@ export const InputsForm: React.FC<InputsFormProps> = ({
 
     if (isNaN(ticket) || ticket <= 0) {
       setValidationError('Ticket médio deve ser um valor positivo.');
-      return;
-    }
-
-    if (!isValidTicket) {
-      setValidationError(
-        `Ticket médio (R$ ${ticket.toFixed(2)}) deve ser maior que R$ ${CUSTO_VARIAVEL_ALUNO.toFixed(2)}.`
-      );
       return;
     }
 
@@ -91,16 +78,9 @@ export const InputsForm: React.FC<InputsFormProps> = ({
             value={localQty}
             onChange={(e) => setLocalQty(e.target.value)}
             disabled={disabled || loading}
+            placeholder="0"
             className="w-full px-3 py-2 text-sm border border-[#e2e8e4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#239371] focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
           />
-          <p className="text-xs text-slate-500 mt-1">
-            Custo por disciplina (EaD): <span className="font-mono font-semibold">R$ {CUSTO_DISCIPLINA.toLocaleString('pt-BR')}</span>
-          </p>
-          {parseInt(localQty, 10) > 0 && (
-            <p className="text-xs text-slate-700 mt-1 font-semibold">
-              Investimento total: <span className="text-[#239371] font-mono">R$ {investimento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </p>
-          )}
         </div>
 
         {/* Ticket Médio */}
@@ -118,9 +98,6 @@ export const InputsForm: React.FC<InputsFormProps> = ({
             className="w-full px-3 py-2 text-sm border border-[#e2e8e4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#239371] focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
             placeholder="0,00"
           />
-          <p className="text-xs text-slate-500 mt-1">
-            Valor da mensalidade por aluno. Custo variável por aluno (plataforma, boleto, editora): R$ {CUSTO_VARIAVEL_ALUNO.toFixed(2)}/mês
-          </p>
         </div>
       </div>
 
@@ -135,7 +112,7 @@ export const InputsForm: React.FC<InputsFormProps> = ({
       {/* Botão Calcular */}
       <button
         type="submit"
-        disabled={disabled || loading || !isValidTicket}
+        disabled={disabled || loading}
         className="w-full btn-unicive-primary text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? 'Calculando...' : 'Calcular Ponto de Equilíbrio'}

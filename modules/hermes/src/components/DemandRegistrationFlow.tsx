@@ -746,8 +746,8 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 }}
                 className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Voltar à Página Inicial</span>
+                <ChevronRight className="w-4 h-4 shrink-0" />
+                <span>Continuar para Quantidade de Disciplinas (Plutos)</span>
               </button>
             ) : (
               <div className="flex flex-col sm:flex-row gap-3">
