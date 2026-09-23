@@ -3,6 +3,8 @@ import { supabase } from './supabaseClient';
 // Espelha o Relatório Executivo do Plutos (modules/plutos/src/types.ts e
 // plutosService.ts) — Hermes e Plutos não compartilham pacote, então essa
 // consulta/exportação é uma cópia intencional, lendo o mesmo banco Supabase.
+// Mostra TODOS os cursos com algum progresso no Hermes (não só os que já têm
+// dados no Plutos), pra dar uma prévia mesmo com dados incompletos.
 export interface RelatorioLinha {
   curso_id: string;
   nome_curso: string;
@@ -14,9 +16,13 @@ export interface RelatorioLinha {
   custo_mensal_medio_curso: number;
   custo_total_curso: number;
   custo_por_modulo: number;
+  quantidade_disciplinas: number;
+  investimento_disciplinas: number;
   ticket_medio: number | null;
   ponto_equilibrio: number | null;
   dados_hermes_parciais: boolean;
+  disciplinas_definidas: boolean;
+  ticket_definido: boolean;
 }
 
 /**
@@ -41,9 +47,13 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     'Custo Mensal Médio (R$)',
     'Custo Total do Curso (R$)',
     'Custo por Módulo (R$)',
+    'Qtd. Disciplinas',
+    'Investimento em Disciplinas (R$)',
     'Ticket Médio (R$)',
     'Ponto de Equilíbrio (alunos)',
-    'Dados do Hermes Parciais',
+    'Setores Completos (Hermes)',
+    'Disciplinas Definidas',
+    'Ticket Médio Definido',
   ];
 
   const fmt = (n: number) => n.toFixed(2).replace('.', ',');
@@ -59,24 +69,31 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       fmt(l.custo_mensal_medio_curso),
       fmt(l.custo_total_curso),
       fmt(l.custo_por_modulo),
+      l.quantidade_disciplinas,
+      fmt(l.investimento_disciplinas),
       l.ticket_medio !== null ? fmt(l.ticket_medio) : '',
       l.ponto_equilibrio !== null ? l.ponto_equilibrio : 'Aguardando ticket médio',
-      l.dados_hermes_parciais ? 'Sim' : 'Não',
+      l.dados_hermes_parciais ? 'Não' : 'Sim',
+      l.disciplinas_definidas ? 'Sim' : 'Não',
+      l.ticket_definido ? 'Sim' : 'Não',
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(';')
   );
 
-  // Linha final com a soma de professores, mediadores, custo mensal e custo total
+  // Linha final com a soma de professores, mediadores, custo mensal, custo total,
+  // quantidade de disciplinas e investimento
   const totais = linhas.reduce(
     (acc, l) => ({
       professores: acc.professores + l.total_professores,
       mediadores: acc.mediadores + l.total_mediadores,
       custoMensal: acc.custoMensal + l.custo_mensal_medio_curso,
       custoTotal: acc.custoTotal + l.custo_total_curso,
+      quantidadeDisciplinas: acc.quantidadeDisciplinas + l.quantidade_disciplinas,
+      investimentoDisciplinas: acc.investimentoDisciplinas + l.investimento_disciplinas,
       pontoEquilibrio: acc.pontoEquilibrio + (l.ponto_equilibrio ?? 0),
     }),
-    { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, pontoEquilibrio: 0 }
+    { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, quantidadeDisciplinas: 0, investimentoDisciplinas: 0, pontoEquilibrio: 0 }
   );
 
   const linhaTotal = [
@@ -89,8 +106,12 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     fmt(totais.custoMensal),
     fmt(totais.custoTotal),
     '',
+    totais.quantidadeDisciplinas,
+    fmt(totais.investimentoDisciplinas),
     '',
     totais.pontoEquilibrio,
+    '',
+    '',
     '',
   ]
     .map((v) => `"${String(v).replace(/"/g, '""')}"`)

@@ -35,8 +35,10 @@ export interface PlutosResultado {
   ticketDefinido: boolean;
 }
 
-// Linha do Relatório Executivo (todos os cursos com PE calculado). Só visível
-// para admin — é o único lugar onde o ticket_medio aparece.
+// Linha do Relatório Executivo. Mostra TODOS os cursos com algum progresso no
+// Hermes (não só os que já têm dados no Plutos), pra dar uma prévia mesmo com
+// dados incompletos. Só visível para admin — é o único lugar onde o
+// ticket_medio aparece.
 export interface RelatorioLinha {
   curso_id: string;
   nome_curso: string;
@@ -48,7 +50,11 @@ export interface RelatorioLinha {
   custo_mensal_medio_curso: number;
   custo_total_curso: number;
   custo_por_modulo: number;
+  quantidade_disciplinas: number;
+  investimento_disciplinas: number;
   ticket_medio: number | null;
   ponto_equilibrio: number | null;
   dados_hermes_parciais: boolean;
+  disciplinas_definidas: boolean;
+  ticket_definido: boolean;
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Download, AlertCircle, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Download, AlertCircle, AlertTriangle, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { RelatorioLinha } from '../types';
 import { fetchRelatorioExecutivo, exportRelatorioCSV } from '../services/plutosService';
 
@@ -14,6 +14,15 @@ interface RelatorioExecutivoProps {
 
 const fmtMoeda = (n: number) =>
   `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** O que falta preencher para este curso, em texto curto. */
+function pendencias(l: RelatorioLinha): string[] {
+  const itens: string[] = [];
+  if (l.dados_hermes_parciais) itens.push('Setores incompletos (Hermes)');
+  if (!l.disciplinas_definidas) itens.push('Sem disciplinas');
+  if (!l.ticket_definido) itens.push('Sem ticket médio');
+  return itens;
+}
 
 export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
   onVoltar,
@@ -33,6 +42,12 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
       .finally(() => setLoading(false));
   }, []);
 
+  // Exportar só é permitido quando TODOS os cursos listados têm os dois
+  // setores (Pedagógico + Estágio) completos no Hermes — a prévia na tela
+  // pode mostrar dados parciais, mas o arquivo exportado não.
+  const cursosIncompletos = linhas.filter((l) => l.dados_hermes_parciais);
+  const podeExportar = linhas.length > 0 && cursosIncompletos.length === 0;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -49,7 +64,12 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
           <button
             type="button"
             onClick={() => exportRelatorioCSV(linhas)}
-            disabled={linhas.length === 0}
+            disabled={!podeExportar}
+            title={
+              podeExportar
+                ? undefined
+                : 'Só é possível exportar quando todos os cursos listados tiverem os dois setores (Pedagógico e Estágio) completos no Hermes.'
+            }
             className="btn-unicive-outline text-xs py-2 px-3.5 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
@@ -75,12 +95,23 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
           <h2 className="text-sm font-bold text-slate-900">Relatório Executivo — Todos os Cursos</h2>
         </div>
         <p className="text-xs text-slate-500">
-          Cursos com disciplinas já cadastradas no Plutos. Custos de Professor/Mediador vêm do Hermes.
+          Prévia de todos os cursos com algum progresso no Hermes — mesmo com dados incompletos, pra dar uma ideia
+          dos valores. Custos de Professor/Mediador vêm do Hermes.
         </p>
         {mensagemContexto && (
           <p className="text-xs text-[#117d5d] bg-[#ebf7f2] border border-[#c8dcd7] rounded-lg px-3 py-2 mt-2">
             ✓ {mensagemContexto}
           </p>
+        )}
+        {linhas.length > 0 && !podeExportar && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mt-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Exportação bloqueada: {cursosIncompletos.length} curso{cursosIncompletos.length > 1 ? 's' : ''} ainda{' '}
+              {cursosIncompletos.length > 1 ? 'têm' : 'tem'} setor incompleto no Hermes. A prévia na tela continua
+              disponível, mas o CSV só libera quando todos os cursos listados estiverem com Pedagógico e Estágio completos.
+            </span>
+          </div>
         )}
       </div>
 
@@ -97,7 +128,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
 
       {!loading && !error && linhas.length === 0 && (
         <div className="card-unicive p-6 text-center text-sm text-slate-500">
-          Nenhum curso com Ponto de Equilíbrio calculado ainda. Preencha os dados de pelo menos um curso no Plutos.
+          Nenhum curso com progresso registrado no Hermes ainda.
         </div>
       )}
 
@@ -117,43 +148,58 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Custo/Módulo</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ticket Médio</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ponto de Equilíbrio</th>
+                <th className="p-3 font-semibold whitespace-nowrap">Pendências</th>
               </tr>
             </thead>
             <tbody>
-              {linhas.map((l) => (
-                <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50">
-                  <td className="p-3 font-semibold text-slate-900 whitespace-nowrap">
-                    {l.nome_curso}
-                    {l.dados_hermes_parciais && (
-                      <span className="ml-1.5 badge-unicive-green text-[9px]">Parcial</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-slate-600 whitespace-nowrap">{l.grau}</td>
-                  <td className="p-3 text-slate-600 text-right tabular">{l.duracao_curso} anos</td>
-                  <td className="p-3 text-slate-600 text-right tabular">{l.quantidade_modulos}</td>
-                  <td className="p-3 text-slate-600 text-right tabular">{l.total_professores}</td>
-                  <td className="p-3 text-slate-600 text-right tabular">{l.total_mediadores}</td>
-                  <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                    {fmtMoeda(l.custo_mensal_medio_curso)}
-                  </td>
-                  <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                    {fmtMoeda(l.custo_total_curso)}
-                  </td>
-                  <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                    {fmtMoeda(l.custo_por_modulo)}
-                  </td>
-                  <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                    {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
-                  </td>
-                  <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
-                    {l.ponto_equilibrio !== null ? (
-                      `${l.ponto_equilibrio} alunos`
-                    ) : (
-                      <span className="text-slate-400 font-normal">aguardando ticket</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {linhas.map((l) => {
+                const itensFaltantes = pendencias(l);
+                return (
+                  <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50">
+                    <td className="p-3 font-semibold text-slate-900 whitespace-nowrap">{l.nome_curso}</td>
+                    <td className="p-3 text-slate-600 whitespace-nowrap">{l.grau}</td>
+                    <td className="p-3 text-slate-600 text-right tabular">{l.duracao_curso} anos</td>
+                    <td className="p-3 text-slate-600 text-right tabular">{l.quantidade_modulos}</td>
+                    <td className="p-3 text-slate-600 text-right tabular">{l.total_professores}</td>
+                    <td className="p-3 text-slate-600 text-right tabular">{l.total_mediadores}</td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.custo_mensal_medio_curso)}
+                    </td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.custo_total_curso)}
+                    </td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.custo_por_modulo)}
+                    </td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
+                    </td>
+                    <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
+                      {l.ponto_equilibrio !== null ? (
+                        `${l.ponto_equilibrio} alunos`
+                      ) : (
+                        <span className="text-slate-400 font-normal">aguardando ticket</span>
+                      )}
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {itensFaltantes.length === 0 ? (
+                        <span className="badge-unicive-green text-[9px]">Completo</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {itensFaltantes.map((item) => (
+                            <span
+                              key={item}
+                              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="bg-[#ebf7f2] border-t-2 border-[#239371] font-bold text-slate-900">
@@ -174,6 +220,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
                   {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
                 </td>
+                <td className="p-3"></td>
               </tr>
             </tfoot>
           </table>
