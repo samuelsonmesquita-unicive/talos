@@ -75,7 +75,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
           <h2 className="text-sm font-bold text-slate-900">Relatório Executivo — Todos os Cursos</h2>
         </div>
         <p className="text-xs text-slate-500">
-          Cursos com Ponto de Equilíbrio já calculado no Plutos. Custos de Professor/Mediador vêm do Hermes.
+          Cursos com disciplinas já cadastradas no Plutos. Custos de Professor/Mediador vêm do Hermes.
         </p>
         {mensagemContexto && (
           <p className="text-xs text-[#117d5d] bg-[#ebf7f2] border border-[#c8dcd7] rounded-lg px-3 py-2 mt-2">
@@ -143,10 +143,14 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                     {fmtMoeda(l.custo_por_modulo)}
                   </td>
                   <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                    {fmtMoeda(l.ticket_medio)}
+                    {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
-                    {l.ponto_equilibrio} alunos
+                    {l.ponto_equilibrio !== null ? (
+                      `${l.ponto_equilibrio} alunos`
+                    ) : (
+                      <span className="text-slate-400 font-normal">aguardando ticket</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -168,7 +172,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 </td>
                 <td className="p-3" colSpan={2}></td>
                 <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
-                  {linhas.reduce((s, l) => s + l.ponto_equilibrio, 0)} alunos
+                  {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
                 </td>
               </tr>
             </tfoot>

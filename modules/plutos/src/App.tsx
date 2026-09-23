@@ -2,14 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { CursoMestre, PlutosResultado } from './types';
 import { CourseSelector } from './components/CourseSelector';
-import { InputsForm } from './components/InputsForm';
+import { DisciplinasForm } from './components/DisciplinasForm';
+import { TicketMedioForm } from './components/TicketMedioForm';
 import { ResultPanel } from './components/ResultPanel';
 import { RelatorioExecutivo } from './components/RelatorioExecutivo';
+import { useAuth } from './hooks/useAuth';
 import {
   fetchCursosComCusto,
-  fetchInputsPorCurso,
-  upsertInputs,
-  fetchCursoIdsComInputs,
+  fetchStatusPorCurso,
+  upsertQuantidadeDisciplinas,
+  upsertTicketMedio,
+  fetchRelatorioExecutivo,
 } from './services/plutosService';
 
 // Quando chamado de dentro de um <iframe> do Hermes: ?curso_id=<id>&embed=1
@@ -19,19 +22,21 @@ const IS_EMBED = urlParams.get('embed') === '1';
 const IS_IFRAMED = typeof window !== 'undefined' && window.self !== window.top;
 
 export default function App() {
+  const { isAdmin } = useAuth();
+
   const [view, setView] = useState<'form' | 'relatorio'>('form');
   const [mensagemRelatorio, setMensagemRelatorio] = useState<string | null>(null);
 
   const [cursos, setCursos] = useState<CursoMestre[]>([]);
   const [selectedCursoId, setSelectedCursoId] = useState<string | null>(PRESET_CURSO_ID);
-  const [quantidadeDisciplinas, setQuantidadeDisciplinas] = useState(0);
-  const [ticketMedio, setTicketMedio] = useState(0);
   const [resultado, setResultado] = useState<PlutosResultado | null>(null);
 
   const [loadingCursos, setLoadingCursos] = useState(true);
   const [errorCursos, setErrorCursos] = useState<string | null>(null);
-  const [loadingCalc, setLoadingCalc] = useState(false);
-  const [errorCalc, setErrorCalc] = useState<string | null>(null);
+  const [loadingDisciplinas, setLoadingDisciplinas] = useState(false);
+  const [errorDisciplinas, setErrorDisciplinas] = useState<string | null>(null);
+  const [loadingTicket, setLoadingTicket] = useState(false);
+  const [errorTicket, setErrorTicket] = useState<string | null>(null);
 
   // Carregar cursos ao montar
   useEffect(() => {
@@ -52,68 +57,61 @@ export default function App() {
     }
   };
 
-  // Carregar inputs quando cursos são selecionados
+  // Carregar status quando um curso é selecionado
   useEffect(() => {
     if (!selectedCursoId) {
-      setQuantidadeDisciplinas(0);
-      setTicketMedio(0);
       setResultado(null);
       return;
     }
 
-    fetchInputsPorCurso(selectedCursoId)
-      .then((inputs) => {
-        if (inputs) {
-          setQuantidadeDisciplinas(inputs.quantidade_disciplinas);
-          setTicketMedio(inputs.ticket_medio);
-          setResultado({
-            curso_id: inputs.curso_id,
-            ponto_equilibrio: inputs.ponto_equilibrio,
-            investimento_disciplinas: inputs.investimento_disciplinas,
-            dados_hermes_parciais: inputs.dados_hermes_parciais,
-          });
-        } else {
-          setQuantidadeDisciplinas(0);
-          setTicketMedio(0);
-          setResultado(null);
-        }
-      })
+    fetchStatusPorCurso(selectedCursoId)
+      .then(setResultado)
       .catch((err) => {
-        console.error('Erro ao carregar inputs:', err);
-        setQuantidadeDisciplinas(0);
-        setTicketMedio(0);
+        console.error('Erro ao carregar status:', err);
         setResultado(null);
       });
   }, [selectedCursoId]);
 
-  const handleCalculate = async (qty: number, ticket: number) => {
+  const handleSaveDisciplinas = async (qty: number) => {
     if (!selectedCursoId) return;
 
-    setLoadingCalc(true);
-    setErrorCalc(null);
+    setLoadingDisciplinas(true);
+    setErrorDisciplinas(null);
 
     try {
-      const res = await upsertInputs(selectedCursoId, qty, ticket);
+      const res = await upsertQuantidadeDisciplinas(selectedCursoId, qty);
+      setResultado(res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
+      setErrorDisciplinas(message);
+    } finally {
+      setLoadingDisciplinas(false);
+    }
+  };
+
+  const handleSaveTicket = async (ticket: number) => {
+    if (!selectedCursoId) return;
+
+    setLoadingTicket(true);
+    setErrorTicket(null);
+
+    try {
+      const res = await upsertTicketMedio(selectedCursoId, ticket);
       setResultado(res);
 
-      // Se este era o ÚLTIMO curso completo no Hermes que ainda não tinha
-      // Ponto de Equilíbrio calculado, encerra o fluxo direto no relatório.
-      const idsComInputs = await fetchCursoIdsComInputs();
-      idsComInputs.add(selectedCursoId);
-      const pendentes = cursos.filter(
-        (c) => c.status_geral === 'completo' && !idsComInputs.has(c.id)
-      );
+      // Admin: se não sobra nenhum curso com disciplinas definidas e ainda sem
+      // ticket médio, encerra o fluxo direto no relatório executivo.
+      const linhas = await fetchRelatorioExecutivo();
+      const pendentes = linhas.filter((l) => l.ticket_medio === null);
       if (pendentes.length === 0) {
-        setMensagemRelatorio(
-          'Todos os cursos completos no Hermes já têm o Ponto de Equilíbrio calculado.'
-        );
+        setMensagemRelatorio('Ticket médio atualizado — todos os cursos com disciplinas definidas já têm ticket médio.');
         setView('relatorio');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido ao calcular.';
-      setErrorCalc(message);
+      const message = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
+      setErrorTicket(message);
     } finally {
-      setLoadingCalc(false);
+      setLoadingTicket(false);
     }
   };
 
@@ -126,11 +124,11 @@ export default function App() {
         <header className="bg-gradient-to-r from-[#0d281e] to-[#143529] text-white p-4 sm:p-6">
           <div className="max-w-6xl mx-auto">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#e7972a]">
-              Projeto Talos &bull; Módulo Plutos
+              Projeto Talos &bull; Cadastro das Disciplinas
             </span>
-            <h1 className="text-2xl font-bold mt-1">Viabilidade &amp; Custo</h1>
+            <h1 className="text-2xl font-bold mt-1">Disciplinas &amp; Viabilidade</h1>
             <p className="text-xs text-emerald-100/80 mt-1">
-              Análise de Ponto de Equilíbrio e Viabilidade Financeira
+              Informe quantas disciplinas precisam ser gravadas para cada curso.
             </p>
           </div>
         </header>
@@ -138,7 +136,7 @@ export default function App() {
 
       {/* Main Content */}
       <main className={`flex-1 w-full mx-auto p-4 sm:p-6 lg:p-8 ${view === 'relatorio' ? 'max-w-6xl' : 'max-w-4xl'}`}>
-        {view === 'relatorio' ? (
+        {view === 'relatorio' && isAdmin ? (
           <RelatorioExecutivo
             onVoltar={() => {
               setMensagemRelatorio(null);
@@ -149,22 +147,24 @@ export default function App() {
           />
         ) : (
           <div className="space-y-6">
-            {/* Link de acesso ao relatório, sempre disponível */}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setView('relatorio')}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] hover:text-[#117d5d] cursor-pointer"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                Ver Relatório Executivo (todos os cursos)
-              </button>
-            </div>
+            {/* Link de acesso ao relatório — só admin */}
+            {isAdmin && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setView('relatorio')}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] hover:text-[#117d5d] cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Ver Relatório Executivo (todos os cursos)
+                </button>
+              </div>
+            )}
 
             {/* Seleção de Curso — colapsada quando já veio pré-selecionada do Hermes */}
             {IS_EMBED && PRESET_CURSO_ID && selectedCurso ? (
               <div className="text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
-                Calculando viabilidade para: <strong className="text-slate-900">{selectedCurso.nome_curso} ({selectedCurso.grau})</strong>
+                Cadastro das disciplinas de: <strong className="text-slate-900">{selectedCurso.nome_curso} ({selectedCurso.grau})</strong>
               </div>
             ) : (
               <section>
@@ -179,38 +179,40 @@ export default function App() {
               </section>
             )}
 
-            {/* Inputs e Cálculo */}
+            {/* Formulário de Disciplinas — qualquer colaborador staff */}
             {selectedCurso && (
               <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-slate-900">Passo 2: Preencha os Dados</h2>
-                  <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                    {selectedCurso.nome_curso} ({selectedCurso.grau})
-                  </span>
-                </div>
-                <InputsForm
-                  quantidadeDisciplinas={quantidadeDisciplinas}
-                  ticketMedio={ticketMedio}
-                  onQuantidadeChange={setQuantidadeDisciplinas}
-                  onTicketChange={setTicketMedio}
-                  onSubmit={handleCalculate}
-                  loading={loadingCalc}
-                  error={errorCalc}
+                <DisciplinasForm
+                  quantidadeDisciplinas={resultado?.quantidade_disciplinas || 0}
+                  onSubmit={handleSaveDisciplinas}
+                  loading={loadingDisciplinas}
+                  error={errorDisciplinas}
+                  disabled={!selectedCurso}
+                />
+              </section>
+            )}
+
+            {/* Formulário de Ticket Médio — só admin */}
+            {selectedCurso && isAdmin && (
+              <section className="space-y-4">
+                <TicketMedioForm
+                  ticketDefinido={resultado?.ticketDefinido || false}
+                  onSubmit={handleSaveTicket}
+                  loading={loadingTicket}
+                  error={errorTicket}
                   disabled={!selectedCurso}
                 />
               </section>
             )}
 
             {/* Resultado */}
-            {selectedCurso && (
+            {selectedCurso && resultado && (
               <section className="space-y-4">
-                <h2 className="text-sm font-bold text-slate-900">Passo 3: Resultado</h2>
-                <ResultPanel resultado={resultado} loading={loadingCalc} />
+                <ResultPanel resultado={resultado} loading={false} />
 
-                {/* Botão de conclusão — só faz sentido quando embutido no fluxo do Hermes.
-                    Se este era o último curso pendente, o handleCalculate já trocou a view
-                    pra 'relatorio' e este botão nem chega a aparecer. */}
-                {IS_EMBED && IS_IFRAMED && resultado && (
+                {/* Botão de conclusão — só faz sentido quando embutido no fluxo do Hermes,
+                    e só depois que as disciplinas já foram salvas (o objetivo desta etapa) */}
+                {IS_EMBED && IS_IFRAMED && resultado.disciplinasDefinidas && (
                   <button
                     type="button"
                     onClick={handleConcluirEVoltar}
@@ -227,7 +229,7 @@ export default function App() {
             {!selectedCurso && cursos.length > 0 && (
               <div className="p-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
                 <p>
-                  👆 Selecione um curso acima para começar a análise de viabilidade financeira.
+                  👆 Selecione um curso acima para cadastrar as disciplinas.
                 </p>
               </div>
             )}
@@ -240,7 +242,7 @@ export default function App() {
         <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
           <div className="max-w-6xl mx-auto px-4">
             <p>
-              &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Análise de Viabilidade Financeira
+              &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Cadastro das Disciplinas
             </p>
           </div>
         </footer>

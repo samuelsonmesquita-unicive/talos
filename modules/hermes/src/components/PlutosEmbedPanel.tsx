@@ -57,12 +57,12 @@ export const PlutosEmbedPanel: React.FC<PlutosEmbedPanelProps> = ({ curso, onClo
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#e7972a]">
-                {curso ? 'Próximo passo' : 'Acesso direto'} &bull; Módulo Plutos
+                {curso ? 'Próximo passo' : 'Acesso direto'} &bull; Cadastro das Disciplinas
               </p>
               <h3 className="text-sm font-bold truncate">
                 {curso
-                  ? `Viabilidade financeira: ${curso.nome_curso} (${curso.grau})`
-                  : 'Viabilidade & Custo — Ponto de Equilíbrio'}
+                  ? `Disciplinas a gravar: ${curso.nome_curso} (${curso.grau})`
+                  : 'Quantas disciplinas precisam ser gravadas?'}
               </h3>
             </div>
           </div>
@@ -89,7 +89,7 @@ export const PlutosEmbedPanel: React.FC<PlutosEmbedPanelProps> = ({ curso, onClo
 
         {/* Iframe do Plutos */}
         <iframe
-          title="Plutos — Ponto de Equilíbrio"
+          title="Cadastro das Disciplinas"
           src={iframeSrc}
           className="flex-1 w-full border-0"
         />

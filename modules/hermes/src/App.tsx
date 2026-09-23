@@ -167,17 +167,17 @@ export default function App() {
     setActiveTab('cadastro');
   };
 
-  // Conclusão de um setor (ou do curso inteiro, quando cursoCompleto = true —
-  // sinal que vem do próprio DemandRegistrationFlow, que sabe com certeza se
-  // Pedagógico + Estágio ficaram completos nesta ação)
-  const handleConcludeSector = (msg?: string, cursoCompleto?: boolean) => {
+  // Conclusão de um setor (ou do curso inteiro). setorConcluido vem do próprio
+  // DemandRegistrationFlow — abre o painel de Disciplinas assim que o Pedagógico
+  // fica completo, sem precisar esperar o Estágio também terminar.
+  const handleConcludeSector = (msg?: string, cursoCompleto?: boolean, setorConcluido?: Setor) => {
     const finishedRegistration = activeRegistration;
     setActiveRegistration(null);
     setActiveTab('cadastro');
     setRefreshKey((k) => k + 1);
     showQuickToast(msg || 'Registro concluído');
 
-    if (cursoCompleto && finishedRegistration) {
+    if (setorConcluido === 'Pedagógico' && finishedRegistration) {
       setPlutosPromptCurso(finishedRegistration.curso);
       setPlutosPanelOpen(true);
     }

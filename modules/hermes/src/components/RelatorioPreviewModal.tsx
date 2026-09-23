@@ -118,10 +118,14 @@ export const RelatorioPreviewModal: React.FC<RelatorioPreviewModalProps> = ({ is
                       {fmtMoeda(l.custo_por_modulo)}
                     </td>
                     <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.ticket_medio)}
+                      {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
-                      {l.ponto_equilibrio} alunos
+                      {l.ponto_equilibrio !== null ? (
+                        `${l.ponto_equilibrio} alunos`
+                      ) : (
+                        <span className="text-slate-400 font-normal">aguardando ticket</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -143,7 +147,7 @@ export const RelatorioPreviewModal: React.FC<RelatorioPreviewModalProps> = ({ is
                   </td>
                   <td className="p-3" colSpan={2}></td>
                   <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
-                    {linhas.reduce((s, l) => s + l.ponto_equilibrio, 0)} alunos
+                    {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
                   </td>
                 </tr>
               </tfoot>

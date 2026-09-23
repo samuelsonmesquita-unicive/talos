@@ -14,15 +14,16 @@ export interface RelatorioLinha {
   custo_mensal_medio_curso: number;
   custo_total_curso: number;
   custo_por_modulo: number;
-  ticket_medio: number;
-  ponto_equilibrio: number;
+  ticket_medio: number | null;
+  ponto_equilibrio: number | null;
   dados_hermes_parciais: boolean;
 }
 
 export async function fetchRelatorioExecutivo(): Promise<RelatorioLinha[]> {
   const { data: inputs, error: errInputs } = await supabase
     .from('plutos_inputs_curso')
-    .select('curso_id, ticket_medio, ponto_equilibrio, dados_hermes_parciais');
+    .select('curso_id, ticket_medio, ponto_equilibrio, dados_hermes_parciais')
+    .gt('quantidade_disciplinas', 0);
 
   if (errInputs) throw new Error(`Falha ao carregar relatório: ${errInputs.message}`);
   if (!inputs || inputs.length === 0) return [];
@@ -108,8 +109,8 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       fmt(l.custo_mensal_medio_curso),
       fmt(l.custo_total_curso),
       fmt(l.custo_por_modulo),
-      fmt(l.ticket_medio),
-      l.ponto_equilibrio,
+      l.ticket_medio !== null ? fmt(l.ticket_medio) : '',
+      l.ponto_equilibrio !== null ? l.ponto_equilibrio : 'Aguardando ticket médio',
       l.dados_hermes_parciais ? 'Sim' : 'Não',
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
@@ -123,7 +124,7 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       mediadores: acc.mediadores + l.total_mediadores,
       custoMensal: acc.custoMensal + l.custo_mensal_medio_curso,
       custoTotal: acc.custoTotal + l.custo_total_curso,
-      pontoEquilibrio: acc.pontoEquilibrio + l.ponto_equilibrio,
+      pontoEquilibrio: acc.pontoEquilibrio + (l.ponto_equilibrio ?? 0),
     }),
     { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, pontoEquilibrio: 0 }
   );

@@ -126,14 +126,14 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
             </select>
           </div>
 
-          {onOpenPlutos && activeCourse.status_geral === 'completo' && (
+          {onOpenPlutos && activeCourse.status_pedagogico === 'completo' && (
             <button
               onClick={() => onOpenPlutos(activeCourse)}
-              title="Calcular Ponto de Equilíbrio no Plutos"
+              title="Cadastro das Disciplinas — informe quantas disciplinas precisam ser gravadas"
               className="btn-unicive-primary text-xs py-2.5 px-3 cursor-pointer print:hidden"
             >
               <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
-              <span className="hidden sm:inline">Calcular Viabilidade</span>
+              <span className="hidden sm:inline">Cadastro das Disciplinas</span>
             </button>
           )}
 

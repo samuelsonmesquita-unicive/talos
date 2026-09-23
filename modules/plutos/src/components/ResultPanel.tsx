@@ -53,34 +53,37 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ resultado, loading = f
             <TrendingUp className="w-4 h-4 text-[#239371]" />
             <span className="text-xs font-semibold">Ponto de Equilíbrio</span>
           </div>
-          <div className="text-4xl font-bold text-[#239371] font-mono">
-            {Math.round(pe).toLocaleString('pt-BR')}
-          </div>
-          <p className="text-xs text-slate-600">
-            Número de alunos necessários para cobrir os custos de Professor/Mediador e evasão.
-          </p>
+          {pe !== null ? (
+            <>
+              <div className="text-4xl font-bold text-[#239371] font-mono">
+                {Math.round(pe).toLocaleString('pt-BR')}
+              </div>
+              <p className="text-xs text-slate-600">
+                Número de alunos necessários para cobrir os custos de Professor/Mediador e evasão.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-xl font-bold text-slate-400">— aguardando ticket médio —</div>
+              <p className="text-xs text-slate-500">
+                Um administrador ainda precisa definir o ticket médio deste curso para calcular o ponto de equilíbrio.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Interpretação */}
-        <div className="p-4 rounded-lg bg-[#ebf7f2] border border-[#c8dcd7] space-y-2">
-          <p className="text-xs font-semibold text-[#117d5d]">Interpretação:</p>
-          <p className="text-xs text-slate-700 leading-relaxed">
-            Para cobrir os custos de docência (Professor e Mediador) deste curso, são necessários{' '}
-            <strong className="text-[#239371]">{Math.round(pe).toLocaleString('pt-BR')} alunos matriculados</strong>{' '}
-            considerando a taxa de evasão de 2026. Esse é o número mínimo para atingir a viabilidade financeira
-            do módulo de custo docente.
-          </p>
-        </div>
-
-        {/* Próximos passos */}
-        <div className="text-xs text-slate-600 p-3 rounded-lg bg-slate-50 space-y-1">
-          <p className="font-semibold text-slate-700">Próximas etapas:</p>
-          <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-            <li>Validar a viabilidade com base na demanda estimada pelo mercado (Atena).</li>
-            <li>Calcular o payback do investimento em disciplinas.</li>
-            <li>Projeta receita líquida com base no número esperado de alunos.</li>
-          </ul>
-        </div>
+        {pe !== null && (
+          <div className="p-4 rounded-lg bg-[#ebf7f2] border border-[#c8dcd7] space-y-2">
+            <p className="text-xs font-semibold text-[#117d5d]">Interpretação:</p>
+            <p className="text-xs text-slate-700 leading-relaxed">
+              Para cobrir os custos de docência (Professor e Mediador) deste curso, são necessários{' '}
+              <strong className="text-[#239371]">{Math.round(pe).toLocaleString('pt-BR')} alunos matriculados</strong>{' '}
+              considerando a taxa de evasão de 2026. Esse é o número mínimo para atingir a viabilidade financeira
+              do módulo de custo docente.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

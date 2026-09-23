@@ -125,15 +125,17 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Ações Técnicas: usam o espaço livre ao lado da logo em vez de disputar com a navegação */}
             <div className="hidden md:flex items-center gap-2 pl-3 ml-1 border-l border-slate-200 min-w-0">
-              <button
-                id="btn-ver-relatorio-executivo"
-                onClick={onOpenRelatorio}
-                title="Ver e baixar Relatório Executivo — todos os cursos com Ponto de Equilíbrio calculado no Plutos"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#e7972a] bg-[#fef5ea] hover:bg-[#fdecd4] px-2.5 py-1.5 rounded-lg border border-[#e7972a]/25 transition-colors cursor-pointer whitespace-nowrap"
-              >
-                <Download className="w-3.5 h-3.5 text-[#e7972a] shrink-0" />
-                <span className="whitespace-nowrap">Relatório</span>
-              </button>
+              {isAdmin && (
+                <button
+                  id="btn-ver-relatorio-executivo"
+                  onClick={onOpenRelatorio}
+                  title="Ver e baixar Relatório Executivo — inclui ticket médio (confidencial, acesso admin)"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#e7972a] bg-[#fef5ea] hover:bg-[#fdecd4] px-2.5 py-1.5 rounded-lg border border-[#e7972a]/25 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#e7972a] shrink-0" />
+                  <span className="whitespace-nowrap">Relatório</span>
+                </button>
+              )}
 
               <button
                 id="btn-tabela-salarial"
@@ -209,11 +211,11 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="tab-btn-plutos"
               onClick={onOpenPlutos}
-              title="Abrir módulo Plutos — Viabilidade & Custo"
+              title="Cadastro das Disciplinas — informe quantas disciplinas precisam ser gravadas"
               className="h-full flex items-center gap-2 px-3 border-b-2 border-transparent whitespace-nowrap transition-colors cursor-pointer text-[#e7972a] hover:text-[#d28117] hover:bg-[#fef5ea]"
             >
               <TrendingUp className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap hidden xl:inline">Plutos</span>
+              <span className="whitespace-nowrap hidden xl:inline">Disciplinas</span>
             </button>
           </nav>
         </div>
@@ -266,19 +268,22 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={onOpenPlutos}
+            title="Cadastro das Disciplinas"
             className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] transition-colors cursor-pointer"
           >
             <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">Plutos</span>
+            <span className="whitespace-nowrap">Disciplinas</span>
           </button>
-          <button
-            onClick={onOpenRelatorio}
-            title="Ver e baixar Relatório Executivo"
-            className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">Relatório</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={onOpenRelatorio}
+              title="Ver e baixar Relatório Executivo (admin)"
+              className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#e7972a] hover:bg-[#fef5ea] transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Relatório</span>
+            </button>
+          )}
           <button
             onClick={onOpenSalaryModal}
             title="Tabela Salarial"

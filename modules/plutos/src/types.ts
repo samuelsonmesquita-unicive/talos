@@ -11,9 +11,9 @@ export interface CursoMestre {
 export interface PlutosInput {
   curso_id: string;
   quantidade_disciplinas: number;
-  ticket_medio: number; // confidencial, nunca deve sair para o cliente
+  ticket_medio: number | null; // confidencial (só admin) — nunca deve sair para o cliente
   investimento_disciplinas: number;
-  ponto_equilibrio: number;
+  ponto_equilibrio: number | null; // null até um admin definir o ticket médio
   dados_hermes_parciais: boolean;
   criado_em: string;
   criado_por: string | null;
@@ -25,14 +25,18 @@ export interface PlutosInput {
 // configuração de evasão (essa tela é usada por qualquer colaborador staff).
 export interface PlutosResultado {
   curso_id: string;
-  ponto_equilibrio: number;
+  quantidade_disciplinas: number;
+  ponto_equilibrio: number | null;
   investimento_disciplinas: number;
   dados_hermes_parciais: boolean;
+  // true quando quantidade_disciplinas já foi salva pelo colaborador
+  disciplinasDefinidas: boolean;
+  // true quando um admin já definiu o ticket médio (sem expor o valor)
+  ticketDefinido: boolean;
 }
 
-// Linha do Relatório Executivo (todos os cursos com PE calculado). Diferente
-// do PlutosResultado, aqui o ticket_medio aparece — o relatório é o lugar
-// certo pra essa informação, conforme definido pelo usuário.
+// Linha do Relatório Executivo (todos os cursos com PE calculado). Só visível
+// para admin — é o único lugar onde o ticket_medio aparece.
 export interface RelatorioLinha {
   curso_id: string;
   nome_curso: string;
@@ -44,7 +48,7 @@ export interface RelatorioLinha {
   custo_mensal_medio_curso: number;
   custo_total_curso: number;
   custo_por_modulo: number;
-  ticket_medio: number;
-  ponto_equilibrio: number;
+  ticket_medio: number | null;
+  ponto_equilibrio: number | null;
   dados_hermes_parciais: boolean;
 }

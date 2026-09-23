@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { CursoMestre, PlutosInput, PlutosResultado, RelatorioLinha } from '../types';
+import { CursoMestre, PlutosResultado, RelatorioLinha } from '../types';
 
 export async function fetchCursosComCusto(): Promise<CursoMestre[]> {
   const { data, error } = await supabase
@@ -11,61 +11,92 @@ export async function fetchCursosComCusto(): Promise<CursoMestre[]> {
   return data || [];
 }
 
-/** IDs dos cursos que já têm inputs do Plutos (ticket médio + PE já calculado). */
+/** IDs dos cursos que já têm quantidade de disciplinas definida no Plutos. */
 export async function fetchCursoIdsComInputs(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('plutos_inputs_curso').select('curso_id');
+  const { data, error } = await supabase
+    .from('plutos_inputs_curso')
+    .select('curso_id, quantidade_disciplinas')
+    .gt('quantidade_disciplinas', 0);
   if (error) throw new Error(`Falha ao verificar cursos pendentes: ${error.message}`);
   return new Set((data || []).map((d) => d.curso_id));
 }
 
-export async function fetchInputsPorCurso(cursoId: string): Promise<PlutosInput | null> {
-  const { data, error } = await supabase
-    .from('plutos_inputs_curso')
-    .select('*')
-    .eq('curso_id', cursoId)
-    .single();
+const SELECT_SEGURO =
+  'curso_id, quantidade_disciplinas, investimento_disciplinas, ponto_equilibrio, dados_hermes_parciais';
 
-  if (error) {
-    if (error.code === 'PGRST116') return null; // Not found
-    throw new Error(`Falha ao carregar inputs: ${error.message}`);
-  }
-
-  return data;
-}
-
-export async function upsertInputs(
-  cursoId: string,
-  quantidadeDisciplinas: number,
-  ticketMedio: number
-): Promise<PlutosResultado> {
-  const { data, error } = await supabase
-    .from('plutos_inputs_curso')
-    .upsert(
-      {
-        curso_id: cursoId,
-        quantidade_disciplinas: quantidadeDisciplinas,
-        ticket_medio: ticketMedio,
-      },
-      { onConflict: 'curso_id' }
-    )
-    .select('curso_id, ponto_equilibrio, investimento_disciplinas, dados_hermes_parciais')
-    .single();
-
-  if (error) throw new Error(`Falha ao salvar inputs: ${error.message}`);
-
+function mapResultadoSeguro(data: {
+  curso_id: string;
+  quantidade_disciplinas: number;
+  investimento_disciplinas: number;
+  ponto_equilibrio: number | null;
+  dados_hermes_parciais: boolean;
+}): PlutosResultado {
   return {
     curso_id: data.curso_id,
+    quantidade_disciplinas: data.quantidade_disciplinas,
     ponto_equilibrio: data.ponto_equilibrio,
     investimento_disciplinas: data.investimento_disciplinas,
     dados_hermes_parciais: data.dados_hermes_parciais,
+    disciplinasDefinidas: data.quantidade_disciplinas > 0,
+    ticketDefinido: data.ponto_equilibrio !== null,
   };
 }
 
 /**
- * Relatório Executivo: uma linha por curso que já tem Ponto de Equilíbrio
- * calculado (ou seja, já passou pelo Plutos). Busca custos do Hermes
- * (hermes_cursos + soma de professores/mediadores em hermes_registros) e
- * junta com os inputs do Plutos (ticket médio, PE).
+ * Status seguro do curso no Plutos — nunca inclui ticket_medio (confidencial,
+ * só admin pode ler/escrever). `ticketDefinido` avisa que já foi preenchido,
+ * sem revelar o valor.
+ */
+export async function fetchStatusPorCurso(cursoId: string): Promise<PlutosResultado | null> {
+  const { data, error } = await supabase
+    .from('plutos_inputs_curso')
+    .select(SELECT_SEGURO)
+    .eq('curso_id', cursoId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Falha ao carregar dados: ${error.message}`);
+  if (!data) return null;
+
+  return mapResultadoSeguro(data);
+}
+
+/** Qualquer colaborador staff pode gravar a quantidade de disciplinas. */
+export async function upsertQuantidadeDisciplinas(
+  cursoId: string,
+  quantidade: number
+): Promise<PlutosResultado> {
+  const { data, error } = await supabase
+    .from('plutos_inputs_curso')
+    .upsert({ curso_id: cursoId, quantidade_disciplinas: quantidade }, { onConflict: 'curso_id' })
+    .select(SELECT_SEGURO)
+    .single();
+
+  if (error) throw new Error(`Falha ao salvar quantidade de disciplinas: ${error.message}`);
+  return mapResultadoSeguro(data);
+}
+
+/**
+ * Só admin pode gravar o ticket médio (checado no trigger do banco também).
+ * Não lê o valor de volta — o formulário funciona "às cegas": o admin digita
+ * o novo valor sem ver o que já estava salvo, mantendo o dado fora do cliente.
+ */
+export async function upsertTicketMedio(cursoId: string, ticketMedio: number): Promise<PlutosResultado> {
+  const { data, error } = await supabase
+    .from('plutos_inputs_curso')
+    .upsert({ curso_id: cursoId, ticket_medio: ticketMedio }, { onConflict: 'curso_id' })
+    .select(SELECT_SEGURO)
+    .single();
+
+  if (error) throw new Error(`Falha ao salvar ticket médio: ${error.message}`);
+  return mapResultadoSeguro(data);
+}
+
+/**
+ * Relatório Executivo: uma linha por curso com quantidade de disciplinas
+ * definida. Busca custos do Hermes (hermes_cursos + soma de
+ * professores/mediadores em hermes_registros) e junta com os inputs do
+ * Plutos (ticket médio, PE). Acesso restrito a admin — só quem pode ver o
+ * ticket médio deve ver esse relatório.
  *
  * Retorna dados estruturados — a exportação (CSV hoje, .docx no futuro) é
  * responsabilidade de outra função, separada da busca dos dados.
@@ -73,7 +104,8 @@ export async function upsertInputs(
 export async function fetchRelatorioExecutivo(): Promise<RelatorioLinha[]> {
   const { data: inputs, error: errInputs } = await supabase
     .from('plutos_inputs_curso')
-    .select('curso_id, ticket_medio, ponto_equilibrio, dados_hermes_parciais');
+    .select('curso_id, ticket_medio, ponto_equilibrio, dados_hermes_parciais')
+    .gt('quantidade_disciplinas', 0);
 
   if (errInputs) throw new Error(`Falha ao carregar relatório: ${errInputs.message}`);
   if (!inputs || inputs.length === 0) return [];
@@ -164,8 +196,8 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       fmt(l.custo_mensal_medio_curso),
       fmt(l.custo_total_curso),
       fmt(l.custo_por_modulo),
-      fmt(l.ticket_medio),
-      l.ponto_equilibrio,
+      l.ticket_medio !== null ? fmt(l.ticket_medio) : '',
+      l.ponto_equilibrio !== null ? l.ponto_equilibrio : 'Aguardando ticket médio',
       l.dados_hermes_parciais ? 'Sim' : 'Não',
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
@@ -179,7 +211,7 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       mediadores: acc.mediadores + l.total_mediadores,
       custoMensal: acc.custoMensal + l.custo_mensal_medio_curso,
       custoTotal: acc.custoTotal + l.custo_total_curso,
-      pontoEquilibrio: acc.pontoEquilibrio + l.ponto_equilibrio,
+      pontoEquilibrio: acc.pontoEquilibrio + (l.ponto_equilibrio ?? 0),
     }),
     { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, pontoEquilibrio: 0 }
   );
@@ -212,4 +244,3 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-

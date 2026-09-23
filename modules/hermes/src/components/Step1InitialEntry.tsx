@@ -16,9 +16,12 @@ import { CursoMestre, Grau, Setor } from '../types';
 import { parseDurationInput } from '../utils/salary';
 import {
   findCourseByKey,
+  getAllCourses,
   resetSectorData,
   upsertCourseMaster,
 } from '../services/courseStore';
+
+const NOVO_CADASTRO = '__novo_cadastro__';
 
 interface Step1InitialEntryProps {
   // Supports both onStartRegistration and onStartDemandFlow
@@ -67,6 +70,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     if (onOpenReport) onOpenReport(curso);
     else if (onGoToReport) onGoToReport(curso);
   };
+  const [cursoSelecionadoDropdown, setCursoSelecionadoDropdown] = useState<string>(NOVO_CADASTRO);
   const [nomeCurso, setNomeCurso] = useState('');
   const [grau, setGrau] = useState<Grau>('Bacharel');
   const [duracaoInput, setDuracaoInput] = useState('');
@@ -79,6 +83,15 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     '4.1' | '4.2' | '4.3' | '4.4' | '4.5' | null
   >(null);
   const [incompletedSectorName, setIncompletedSectorName] = useState<Setor>('Pedagógico');
+
+  const nomesCadastrados = Array.from(
+    new Set(getAllCourses().map((c) => c.nome_curso))
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  const handleSelecionarCursoDropdown = (valor: string) => {
+    setCursoSelecionadoDropdown(valor);
+    setNomeCurso(valor === NOVO_CADASTRO ? '' : valor);
+  };
 
   const duracaoParsed = parseDurationInput(duracaoInput);
   const modulosCalculados = duracaoParsed ? Math.round(duracaoParsed * 4) : null;
@@ -243,20 +256,38 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
           {/* Nome do Curso */}
           <div>
             <label
-              htmlFor="input-nome-curso"
+              htmlFor="select-nome-curso"
               className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2"
             >
               Nome do Curso
             </label>
-            <input
-              id="input-nome-curso"
-              type="text"
+            <select
+              id="select-nome-curso"
               required
-              value={nomeCurso}
-              onChange={(e) => setNomeCurso(e.target.value)}
-              placeholder="Ex.: Administração, Pedagogia, Análise e Desenvolvimento de Sistemas..."
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#239371] focus:border-transparent text-sm font-medium transition-all"
-            />
+              value={cursoSelecionadoDropdown}
+              onChange={(e) => handleSelecionarCursoDropdown(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#239371] focus:border-transparent text-sm font-medium transition-all cursor-pointer"
+            >
+              <option value={NOVO_CADASTRO}>+ Novo Cadastro (digitar nome novo)</option>
+              {nomesCadastrados.map((nome) => (
+                <option key={nome} value={nome}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+
+            {cursoSelecionadoDropdown === NOVO_CADASTRO && (
+              <input
+                id="input-nome-curso"
+                type="text"
+                required
+                autoFocus
+                value={nomeCurso}
+                onChange={(e) => setNomeCurso(e.target.value)}
+                placeholder="Ex.: Administração, Pedagogia, Análise e Desenvolvimento de Sistemas..."
+                className="w-full mt-2 px-4 py-3 rounded-lg border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#239371] focus:border-transparent text-sm font-medium transition-all"
+              />
+            )}
           </div>
 
           {/* Grau do Curso */}

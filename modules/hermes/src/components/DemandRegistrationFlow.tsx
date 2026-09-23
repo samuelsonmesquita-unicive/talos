@@ -36,9 +36,11 @@ interface DemandRegistrationFlowProps {
   isRetomada?: boolean;
   // Supports onConcludeSector and onConclude with optional toast message.
   // cursoCompleto = true quando ESTE ato de conclusão deixou o curso 100% completo
-  // (Pedagógico + Estágio), para o app-shell decidir se abre o próximo passo (Plutos).
-  onConcludeSector?: (toastMsg?: string, cursoCompleto?: boolean) => void;
-  onConclude?: (toastMsg?: string, cursoCompleto?: boolean) => void;
+  // (Pedagógico + Estágio). setorConcluido = qual setor acabou de ser concluído nesta
+  // ação — o app-shell usa isso pra decidir se abre o próximo passo (Plutos/Disciplinas),
+  // que hoje dispara assim que o Pedagógico fica completo (não precisa esperar Estágio).
+  onConcludeSector?: (toastMsg?: string, cursoCompleto?: boolean, setorConcluido?: Setor) => void;
+  onConclude?: (toastMsg?: string, cursoCompleto?: boolean, setorConcluido?: Setor) => void;
   onCancel?: () => void;
   onGoToConsult?: () => void;
   onGoToReport?: (curso: CursoMestre) => void;
@@ -168,9 +170,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   const total = curso.quantidade_modulos;
   const resolvedInitialSetor: Setor = setorInicial || initialSetor;
 
-  const handleConclude = (toastMsg?: string, cursoCompleto?: boolean) => {
-    if (onConcludeSector) onConcludeSector(toastMsg, cursoCompleto);
-    else if (onConclude) onConclude(toastMsg, cursoCompleto);
+  const handleConclude = (toastMsg?: string, cursoCompleto?: boolean, setorConcluido?: Setor) => {
+    if (onConcludeSector) onConcludeSector(toastMsg, cursoCompleto, setorConcluido);
+    else if (onConclude) onConclude(toastMsg, cursoCompleto, setorConcluido);
   };
 
   const [currentSetor, setCurrentSetor] = useState<Setor>(resolvedInitialSetor);
@@ -741,8 +743,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 type="button"
                 id="btn-concluir-curso"
                 onClick={() => {
+                  const setor = showSetorCompletedPopup.setor;
                   setShowSetorCompletedPopup(null);
-                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`, true);
+                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`, true, setor);
                 }}
                 className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -757,7 +760,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   onClick={() => {
                     const setor = showSetorCompletedPopup.setor;
                     setShowSetorCompletedPopup(null);
-                    handleConclude(`Setor ${setor} preenchido com sucesso`, false);
+                    handleConclude(`Setor ${setor} preenchido com sucesso`, false, setor);
                   }}
                   className="btn-unicive-outline flex-1 py-3 px-4 text-sm font-bold"
                 >
