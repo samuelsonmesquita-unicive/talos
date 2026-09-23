@@ -30,6 +30,7 @@ export default function App() {
   const [cursos, setCursos] = useState<CursoMestre[]>([]);
   const [selectedCursoId, setSelectedCursoId] = useState<string | null>(PRESET_CURSO_ID);
   const [resultado, setResultado] = useState<PlutosResultado | null>(null);
+  const [showConcluidoPopup, setShowConcluidoPopup] = useState(false);
 
   const [loadingCursos, setLoadingCursos] = useState(true);
   const [errorCursos, setErrorCursos] = useState<string | null>(null);
@@ -57,6 +58,21 @@ export default function App() {
     }
   };
 
+  // Colaborador comum: depois do popup "Cadastro concluído", volta sozinho
+  // pro Hermes (se estiver embutido) ou pra seleção de curso (se standalone).
+  useEffect(() => {
+    if (!showConcluidoPopup) return;
+    const timer = setTimeout(() => {
+      setShowConcluidoPopup(false);
+      if (IS_IFRAMED) {
+        handleConcluirEVoltar();
+      } else {
+        setSelectedCursoId(null);
+      }
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [showConcluidoPopup]);
+
   // Carregar status quando um curso é selecionado
   useEffect(() => {
     if (!selectedCursoId) {
@@ -81,6 +97,12 @@ export default function App() {
     try {
       const res = await upsertQuantidadeDisciplinas(selectedCursoId, qty);
       setResultado(res);
+
+      // Colaborador comum: essa é a etapa inteira dele — mostra confirmação
+      // e volta sozinho. Admin continua na tela (ainda precisa do ticket médio).
+      if (!isAdmin) {
+        setShowConcluidoPopup(true);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
       setErrorDisciplinas(message);
@@ -205,8 +227,9 @@ export default function App() {
               </section>
             )}
 
-            {/* Resultado */}
-            {selectedCurso && resultado && (
+            {/* Resultado — só admin. O colaborador comum só cadastra a quantidade de
+                disciplinas; o Ponto de Equilíbrio não é da conta dele. */}
+            {selectedCurso && resultado && isAdmin && (
               <section className="space-y-4">
                 <ResultPanel resultado={resultado} loading={false} />
 
@@ -246,6 +269,25 @@ export default function App() {
             </p>
           </div>
         </footer>
+      )}
+
+      {/* Popup de conclusão — colaborador comum, ao salvar as disciplinas */}
+      {showConcluidoPopup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-8 text-center space-y-3">
+            <div className="w-14 h-14 bg-[#ebf7f2] text-[#239371] rounded-2xl flex items-center justify-center mx-auto border border-emerald-200">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Cadastro concluído!</h3>
+            <p className="text-xs text-slate-500">
+              {IS_IFRAMED ? 'Voltando ao Hermes...' : 'Redirecionando...'}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
