@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Atalhos do Google Drive (não são código)
+*.gdoc
