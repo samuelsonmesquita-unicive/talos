@@ -88,9 +88,31 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     new Set(getAllCourses().map((c) => c.nome_curso))
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+  // Curso já cadastrado: sugere grau e duração registrados no banco.
+  const preencherComDadosDoBanco = (curso: CursoMestre | undefined) => {
+    if (!curso) return;
+    setGrau(curso.grau);
+    setDuracaoInput(curso.duracao_curso.toString().replace('.', ','));
+  };
+
   const handleSelecionarCursoDropdown = (valor: string) => {
     setCursoSelecionadoDropdown(valor);
-    setNomeCurso(valor === NOVO_CADASTRO ? '' : valor);
+    if (valor === NOVO_CADASTRO) {
+      setNomeCurso('');
+      setDuracaoInput('');
+      return;
+    }
+    setNomeCurso(valor);
+    const cadastrados = getAllCourses().filter((c) => c.nome_curso === valor);
+    preencherComDadosDoBanco(cadastrados.find((c) => c.grau === grau) ?? cadastrados[0]);
+  };
+
+  const handleSelecionarGrau = (novoGrau: Grau) => {
+    setGrau(novoGrau);
+    if (cursoSelecionadoDropdown !== NOVO_CADASTRO) {
+      const curso = findCourseByKey(cursoSelecionadoDropdown, novoGrau);
+      if (curso) setDuracaoInput(curso.duracao_curso.toString().replace('.', ','));
+    }
   };
 
   const duracaoParsed = parseDurationInput(duracaoInput);
@@ -295,11 +317,11 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
               Grau Acadêmico
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 id="btn-grau-bacharel"
-                onClick={() => setGrau('Bacharel')}
+                onClick={() => handleSelecionarGrau('Bacharel')}
                 className={`py-3 px-4 rounded-lg text-sm font-semibold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   grau === 'Bacharel'
                     ? 'bg-[#ebf7f2] text-[#239371] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs'
@@ -312,8 +334,22 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
 
               <button
                 type="button"
+                id="btn-grau-licenciatura"
+                onClick={() => handleSelecionarGrau('Licenciatura')}
+                className={`py-3 px-4 rounded-lg text-sm font-semibold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  grau === 'Licenciatura'
+                    ? 'bg-[#ebf7f2] text-[#239371] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-[#239371]" />
+                <span>Licenciatura</span>
+              </button>
+
+              <button
+                type="button"
                 id="btn-grau-tecnologo"
-                onClick={() => setGrau('Tecnólogo')}
+                onClick={() => handleSelecionarGrau('Tecnólogo')}
                 className={`py-3 px-4 rounded-lg text-sm font-semibold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   grau === 'Tecnólogo'
                     ? 'bg-[#ebf7f2] text-[#239371] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs'

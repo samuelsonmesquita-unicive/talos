@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   id="btn-ver-relatorio-executivo"
                   onClick={onOpenRelatorio}
-                  title="Ver e baixar Relatório Executivo — inclui ticket médio (confidencial, acesso admin)"
+                  title="Ver e baixar Relatório Executivo"
                   className="flex items-center gap-1.5 text-xs font-semibold text-[#e7972a] bg-[#fef5ea] hover:bg-[#fdecd4] px-2.5 py-1.5 rounded-lg border border-[#e7972a]/25 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <Download className="w-3.5 h-3.5 text-[#e7972a] shrink-0" />

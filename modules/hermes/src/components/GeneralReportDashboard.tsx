@@ -458,6 +458,7 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
             >
               <option value="Todos">Grau: Todos</option>
               <option value="Bacharel">Grau: Bacharel</option>
+              <option value="Licenciatura">Grau: Licenciatura</option>
               <option value="Tecnólogo">Grau: Tecnólogo</option>
             </select>
           </div>

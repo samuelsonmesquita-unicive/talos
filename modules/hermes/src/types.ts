@@ -1,4 +1,4 @@
-export type Grau = 'Bacharel' | 'Tecnólogo';
+export type Grau = 'Bacharel' | 'Licenciatura' | 'Tecnólogo';
 export type Setor = 'Pedagógico' | 'Estágio';
 export type Cargo = 'Professor' | 'Mediador';
 export type CargaHoraria = '10h' | '20h' | '40h';

@@ -27,7 +27,7 @@ export const LoginScreen: React.FC = () => {
 
         <div className="p-6 space-y-4">
           <p className="text-sm text-slate-600">
-            Acesso restrito a colaboradores. Entre com sua conta institucional do Google Workspace.
+            Acesso restrito a colaboradores. Entre com sua conta institucional.
           </p>
 
           {authError && (
