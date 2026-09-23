@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import { CargaHoraria, Cargo, SalaryConfig } from '../types';
-import {
-  getStoredSalaryConfig,
-  saveStoredSalaryConfig,
-  formatCurrency,
-  restoreDefaultSalaryConfig,
-  aplicarEncargosAoSalario,
-  DEFAULT_SALARY_CONFIG,
-} from '../utils/salary';
-import { recalcularTodosOsCursos } from '../services/courseStore';
+import { formatCurrency, aplicarEncargosAoSalario } from '../utils/salary';
 import { saveSalaryConfigToCloud } from '../services/cloudSync';
 import {
   X,
   Save,
-  RotateCcw,
   AlertTriangle,
   CheckCircle2,
   Coins,
@@ -28,14 +19,25 @@ interface SalaryModalProps {
   onConfigUpdated: () => void;
 }
 
+type CampoStr = Record<Cargo, Record<CargaHoraria, string>>;
+
+const CAMPOS_VAZIOS: CampoStr = {
+  Professor: { '10h': '', '20h': '', '40h': '' },
+  Mediador: { '10h': '', '20h': '', '40h': '' },
+};
+
 export const SalaryModal: React.FC<SalaryModalProps> = ({
   isOpen,
   onClose,
   onConfigUpdated,
 }) => {
-  const [config, setConfig] = useState<SalaryConfig>(() => getStoredSalaryConfig());
+  // Formulário "às cegas": nunca pré-carrega os valores salvos (a tabela
+  // salarial é confidencial — nem admin consulta o valor atual pelo
+  // cliente). O admin digita os 6 valores novos do zero a cada edição.
+  const [campos, setCampos] = useState<CampoStr>(CAMPOS_VAZIOS);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Privilégio vem do papel da conta (profiles.role), não de senha no front
   const { isAdmin } = useAuth();
@@ -43,13 +45,9 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
   if (!isOpen) return null;
 
   const handleChange = (cargo: Cargo, ch: CargaHoraria, val: string) => {
-    const num = parseFloat(val);
-    setConfig((prev) => ({
+    setCampos((prev) => ({
       ...prev,
-      [cargo]: {
-        ...prev[cargo],
-        [ch]: isNaN(num) ? 0 : num,
-      },
+      [cargo]: { ...prev[cargo], [ch]: val },
     }));
   };
 
@@ -61,31 +59,34 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
 
     const cargos: Cargo[] = ['Professor', 'Mediador'];
     const chs: CargaHoraria[] = ['10h', '20h', '40h'];
+    const config: SalaryConfig = { Professor: { '10h': 0, '20h': 0, '40h': 0 }, Mediador: { '10h': 0, '20h': 0, '40h': 0 } };
 
     for (const cargo of cargos) {
       for (const ch of chs) {
-        const val = config[cargo]?.[ch];
-        if (typeof val !== 'number' || val <= 0) {
+        const num = parseFloat(campos[cargo][ch]);
+        if (isNaN(num) || num <= 0) {
           setErrorNotice(`O salário de ${cargo} (${ch}) deve ser um valor numérico positivo.`);
           return;
         }
+        config[cargo][ch] = num;
       }
     }
 
-    // O banco valida o perfil admin e recalcula todos os custos; só depois atualiza o cache local
+    setSaving(true);
     try {
       await saveSalaryConfigToCloud(config);
     } catch (err) {
       setErrorNotice(
         `Não foi possível salvar a tabela salarial: ${err instanceof Error ? err.message : 'erro desconhecido'}`
       );
+      setSaving(false);
       return;
     }
-    saveStoredSalaryConfig(config);
-    recalcularTodosOsCursos();
+    setSaving(false);
+    setCampos(CAMPOS_VAZIOS);
 
     setSuccessNotice(
-      'Tabela salarial atualizada e sincronizada na nuvem com sucesso! Todos os cursos foram recalculados.'
+      'Tabela salarial atualizada com sucesso! O servidor recalculou todos os cursos — a sincronização em tempo real atualiza a tela em instantes.'
     );
     onConfigUpdated();
 
@@ -93,32 +94,6 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
       setSuccessNotice(null);
       onClose();
     }, 1500);
-  };
-
-  const handleReset = async () => {
-    if (!isAdmin) return;
-
-    if (
-      window.confirm(
-        'Deseja restaurar a tabela salarial oficial com o reajuste padrão de 4% (2026/2027) na nuvem?'
-      )
-    ) {
-      try {
-        await saveSalaryConfigToCloud(DEFAULT_SALARY_CONFIG);
-      } catch (err) {
-        setErrorNotice(
-          `Não foi possível restaurar a tabela salarial: ${err instanceof Error ? err.message : 'erro desconhecido'}`
-        );
-        return;
-      }
-      restoreDefaultSalaryConfig();
-      const def = getStoredSalaryConfig();
-      recalcularTodosOsCursos();
-      setConfig(def);
-      onConfigUpdated();
-      setSuccessNotice('Valores padrão de 2026/2027 restaurados na nuvem!');
-      setTimeout(() => setSuccessNotice(null), 1500);
-    }
   };
 
   return (
@@ -136,7 +111,7 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Valores base centralizados na nuvem &bull; Controle de Acesso Restrito
+              Dado confidencial &bull; Acesso e edição exclusivos de administradores
             </p>
           </div>
           <button
@@ -147,91 +122,33 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
           </button>
         </div>
 
-        {/* SOMENTE LEITURA PARA QUEM NÃO É ADMINISTRADOR */}
+        {/* SEM ACESSO PARA QUEM NÃO É ADMINISTRADOR — nenhum dado é mostrado */}
         {!isAdmin ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
               <Lock className="w-5 h-5 text-[#e7972a] shrink-0 mt-0.5" />
               <div className="text-xs text-amber-900">
                 <strong className="block font-bold mb-1">
-                  Acesso Restrito: Somente Usuários com Privilégios
+                  Acesso Restrito: Somente Administradores
                 </strong>
-                Por diretriz institucional, a edição dos valores da tabela salarial e a aplicação de reajustes requerem autenticação administrativa. Qualquer usuário pode visualizar a tabela abaixo em modo somente leitura.
+                A tabela salarial é um dado financeiro confidencial. Nem a visualização nem a edição
+                estão disponíveis para o seu perfil.
               </div>
-            </div>
-
-            {/* Informações da Regra de Encargos */}
-            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-950 space-y-1">
-              <span className="font-bold block text-emerald-900">Regra de Custos da Folha e Encargos Institucionais (+***%):</span>
-              <p className="text-[11px] text-emerald-800 leading-relaxed">
-                • <strong>Custos Trabalhistas (***%):</strong> 13º Salário (***) + Férias (***) + 1/3 Constitucional de Férias (***)
-                <br />
-                • <strong>Encargos Patronais (***%):</strong> INSS Patronal (***%) + Encargos Adicionais da Folha (***%)
-                <br />
-                O custo mensal de cada docente aplica essa regra sobre o salário base da carga horária selecionada.
-              </p>
-            </div>
-
-            {/* Visualização Somente Leitura dos Valores */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-700">Professor</span>
-                  <span className="badge-unicive-green">Atual</span>
-                </div>
-                <div className="space-y-2 text-xs">
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => (
-                    <div key={`view-prof-${ch}`} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0">
-                      <div>
-                        <span className="text-slate-600 font-medium">{ch}:</span>
-                        <span className="block text-[10px] text-slate-400">Base: {formatCurrency(config.Professor[ch])}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold tabular text-slate-900">{formatCurrency(aplicarEncargosAoSalario(config.Professor[ch]))}</span>
-                        <span className="block text-[10px] text-[#117d5d] font-semibold">+***% folha</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold uppercase text-slate-700">Mediador</span>
-                  <span className="badge-unicive-ead">Atual</span>
-                </div>
-                <div className="space-y-2 text-xs">
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => (
-                    <div key={`view-med-${ch}`} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0">
-                      <div>
-                        <span className="text-slate-600 font-medium">{ch}:</span>
-                        <span className="block text-[10px] text-slate-400">Base: {formatCurrency(config.Mediador[ch])}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold tabular text-slate-900">{formatCurrency(aplicarEncargosAoSalario(config.Mediador[ch]))}</span>
-                        <span className="block text-[10px] text-[#117d5d] font-semibold">+***% folha</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600">
-              <ShieldCheck className="w-4 h-4 text-[#239371] shrink-0" />
-              <span>
-                A edição da tabela salarial é exclusiva de contas com perfil de administrador.
-              </span>
             </div>
           </div>
         ) : (
-          /* MODO AUTORIZADO: FORMULÁRIO DE EDIÇÃO */
+          /* MODO AUTORIZADO: FORMULÁRIO DE EDIÇÃO ÀS CEGAS (não mostra valores atuais) */
           <div className="space-y-6">
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-[#117d5d]">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#239371]" />
                 <span className="font-bold">Modo de Edição Administrativa (perfil Admin)</span>
               </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+              Por confidencialidade, os valores atuais não são exibidos aqui. Preencha os 6 valores
+              novos abaixo — eles substituem a tabela salarial vigente ao salvar.
             </div>
 
             {/* Avisos */}
@@ -263,27 +180,34 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
                     </span>
                   </div>
 
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => (
-                    <div key={`prof-${ch}`}>
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="text-xs font-bold text-slate-700">
-                          Carga Horária {ch} (Base)
-                        </label>
-                        <span className="text-[10px] text-[#117d5d] font-bold tabular">
-                          c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(config.Professor[ch]))}
-                        </span>
+                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
+                    const num = parseFloat(campos.Professor[ch]);
+                    const valido = !isNaN(num) && num > 0;
+                    return (
+                      <div key={`prof-${ch}`}>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-bold text-slate-700">
+                            Carga Horária {ch} (Base, novo valor)
+                          </label>
+                          {valido && (
+                            <span className="text-[10px] text-[#117d5d] font-bold tabular">
+                              c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(num))}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          placeholder="Digite o novo valor"
+                          value={campos.Professor[ch]}
+                          onChange={(e) => handleChange('Professor', ch, e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm font-bold tabular focus:outline-none focus:ring-2 focus:ring-[#239371]"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="1"
-                        required
-                        value={config.Professor[ch]}
-                        onChange={(e) => handleChange('Professor', ch, e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm font-bold tabular focus:outline-none focus:ring-2 focus:ring-[#239371]"
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Bloco Mediador */}
@@ -297,27 +221,34 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
                     </span>
                   </div>
 
-                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => (
-                    <div key={`med-${ch}`}>
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="text-xs font-bold text-slate-700">
-                          Carga Horária {ch} (Base)
-                        </label>
-                        <span className="text-[10px] text-[#117d5d] font-bold tabular">
-                          c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(config.Mediador[ch]))}
-                        </span>
+                  {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
+                    const num = parseFloat(campos.Mediador[ch]);
+                    const valido = !isNaN(num) && num > 0;
+                    return (
+                      <div key={`med-${ch}`}>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-bold text-slate-700">
+                            Carga Horária {ch} (Base, novo valor)
+                          </label>
+                          {valido && (
+                            <span className="text-[10px] text-[#117d5d] font-bold tabular">
+                              c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(num))}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          placeholder="Digite o novo valor"
+                          value={campos.Mediador[ch]}
+                          onChange={(e) => handleChange('Mediador', ch, e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm font-bold tabular focus:outline-none focus:ring-2 focus:ring-[#239371]"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="1"
-                        required
-                        value={config.Mediador[ch]}
-                        onChange={(e) => handleChange('Mediador', ch, e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm font-bold tabular focus:outline-none focus:ring-2 focus:ring-[#239371]"
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -326,16 +257,7 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
               </div>
 
               {/* Ações */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="btn-unicive-outline text-xs"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1 text-slate-500" />
-                  Restaurar Padrão (+4%)
-                </button>
-
+              <div className="flex items-center justify-end pt-2 border-t border-slate-100">
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -346,10 +268,11 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="btn-unicive-primary text-xs"
+                    disabled={saving}
+                    className="btn-unicive-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Save className="w-3.5 h-3.5 mr-1.5" />
-                    Salvar e Sincronizar Nuvem
+                    {saving ? 'Salvando...' : 'Salvar e Sincronizar Nuvem'}
                   </button>
                 </div>
               </div>

@@ -14,10 +14,8 @@ import { initializeCloudDatabase, saveAllCourses, saveAllRegistros } from './ser
 import {
   subscribeToCourses,
   subscribeToRegistros,
-  subscribeToSalaryConfig,
   setCloudErrorHandler,
 } from './services/cloudSync';
-import { saveStoredSalaryConfig } from './utils/salary';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
@@ -135,20 +133,11 @@ export default function App() {
       if (isMounted) setCloudStatus('conectado');
     });
 
-    // Subscrição em tempo real à tabela salarial
-    const unsubSalary = subscribeToSalaryConfig((cloudSalary) => {
-      if (cloudSalary) {
-        saveStoredSalaryConfig(cloudSalary);
-        setRefreshKey((k) => k + 1);
-      }
-    });
-
     return () => {
       isMounted = false;
       setCloudErrorHandler(null);
       unsubCourses();
       unsubRegistros();
-      unsubSalary();
     };
   }, []);
 

@@ -5,7 +5,7 @@ import {
   getRegistrosForCourse,
   getNextPendingModule,
 } from '../services/courseStore';
-import { buscar_salario, formatCurrency } from '../utils/salary';
+import { formatCurrency } from '../utils/salary';
 import { MESES_POR_MODULO, MODULOS_POR_ANO } from '../utils/courseCalculations';
 import {
   CheckCircle2,
@@ -63,7 +63,6 @@ const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, on
   const num = Number(qtd);
   const qtdOk = qtd.trim() !== '' && Number.isInteger(num) && num >= 0 && num <= MAX_QTD;
   const chLiberada = qtdOk && num > 0;
-  const custo = qtdOk && num > 0 && ch ? num * buscar_salario(ch, cargo) * MESES_POR_MODULO : 0;
   const prefix = cargo.slice(0, 4).toLowerCase();
 
   return (
@@ -72,9 +71,6 @@ const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, on
         <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
           {icon}
           {cargo}
-        </span>
-        <span className="text-xs font-bold text-slate-900 tabular">
-          {qtdOk ? formatCurrency(custo) : '—'}
         </span>
       </div>
 
@@ -130,7 +126,7 @@ const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, on
           ? 'Sem ' + cargo.toLowerCase() + ' neste módulo'
           : !ch
           ? 'Escolha a carga horária semanal'
-          : `${num} × ${formatCurrency(buscar_salario(ch, cargo))} × ${MESES_POR_MODULO} meses`}
+          : `${num} ${cargo.toLowerCase()}(es) · carga ${ch} · custo calculado ao salvar`}
       </p>
     </div>
   );
@@ -259,10 +255,6 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   const medOk = medQtdOk && (numMed === 0 || chMed !== null);
   const canSalvar = profOk && medOk;
 
-  const custoProf = profOk && numProf > 0 ? numProf * buscar_salario(chProf!, 'Professor') * MESES_POR_MODULO : 0;
-  const custoMed = medOk && numMed > 0 ? numMed * buscar_salario(chMed!, 'Mediador') * MESES_POR_MODULO : 0;
-  const custoModulo = custoProf + custoMed;
-
   const mensagemPendencia = (): string | null => {
     if (!profQtdOk) return `Informe a quantidade de Professores (0 a ${MAX_QTD}).`;
     if (numProf > 0 && !chProf) return 'Selecione a carga horária do Professor.';
@@ -295,13 +287,13 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
 
     if (jaEstavaCompleto) {
-      setNotice(`Módulo ${currentModulo} atualizado. Custo: ${formatCurrency(custoModulo)}.`);
+      setNotice(`Módulo ${currentModulo} atualizado.`);
       return;
     }
 
     if (currentModulo < total) {
       const next = currentModulo + 1;
-      setNotice(`Módulo ${currentModulo} salvo (${formatCurrency(custoModulo)}).`);
+      setNotice(`Módulo ${currentModulo} salvo.`);
       setCurrentModulo(next);
     } else {
       finalizarSetor();
@@ -601,13 +593,15 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
             <div className="leading-tight">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                Custo do módulo
+                Demanda do módulo
               </span>
-              <span className="text-xl font-bold text-[#117d5d] tabular">
-                {canSalvar ? formatCurrency(custoModulo) : '—'}
+              <span className="text-sm font-bold text-[#117d5d]">
+                {canSalvar
+                  ? `${numProf} professor(es) · ${numMed} mediador(es)`
+                  : '—'}
               </span>
               <span className="text-[11px] text-slate-500 ml-2">
-                {canSalvar ? `${formatCurrency(custoModulo / MESES_POR_MODULO)} / mês` : ''}
+                Custo calculado no servidor ao salvar
               </span>
             </div>
 

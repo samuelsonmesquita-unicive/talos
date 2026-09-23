@@ -11,16 +11,6 @@ export async function fetchCursosComCusto(): Promise<CursoMestre[]> {
   return data || [];
 }
 
-/** IDs dos cursos que já têm quantidade de disciplinas definida no Plutos. */
-export async function fetchCursoIdsComInputs(): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from('plutos_inputs_curso')
-    .select('curso_id, quantidade_disciplinas')
-    .gt('quantidade_disciplinas', 0);
-  if (error) throw new Error(`Falha ao verificar cursos pendentes: ${error.message}`);
-  return new Set((data || []).map((d) => d.curso_id));
-}
-
 const SELECT_SEGURO =
   'curso_id, quantidade_disciplinas, investimento_disciplinas, ponto_equilibrio, dados_hermes_parciais';
 
@@ -81,85 +71,35 @@ export async function upsertQuantidadeDisciplinas(
  * o novo valor sem ver o que já estava salvo, mantendo o dado fora do cliente.
  */
 export async function upsertTicketMedio(cursoId: string, ticketMedio: number): Promise<PlutosResultado> {
+  const { error: rpcError } = await supabase.rpc('plutos_admin_set_ticket_medio', {
+    p_curso_id: cursoId,
+    p_ticket_medio: ticketMedio,
+  });
+  if (rpcError) throw new Error(`Falha ao salvar ticket médio: ${rpcError.message}`);
+
   const { data, error } = await supabase
     .from('plutos_inputs_curso')
-    .upsert({ curso_id: cursoId, ticket_medio: ticketMedio }, { onConflict: 'curso_id' })
     .select(SELECT_SEGURO)
+    .eq('curso_id', cursoId)
     .single();
 
-  if (error) throw new Error(`Falha ao salvar ticket médio: ${error.message}`);
+  if (error) throw new Error(`Falha ao recarregar dados: ${error.message}`);
   return mapResultadoSeguro(data);
 }
 
 /**
  * Relatório Executivo: uma linha por curso com quantidade de disciplinas
- * definida. Busca custos do Hermes (hermes_cursos + soma de
- * professores/mediadores em hermes_registros) e junta com os inputs do
- * Plutos (ticket médio, PE). Acesso restrito a admin — só quem pode ver o
- * ticket médio deve ver esse relatório.
+ * definida. Chama a função do banco (plutos_fn_relatorio_executivo), que
+ * já valida is_admin() internamente — o ticket médio nunca passa por uma
+ * tabela com SELECT liberado, só por essa função checada no servidor.
  *
- * Retorna dados estruturados — a exportação (CSV hoje, .docx no futuro) é
- * responsabilidade de outra função, separada da busca dos dados.
+ * A exportação (CSV hoje, .docx no futuro) é responsabilidade de outra
+ * função, separada da busca dos dados.
  */
 export async function fetchRelatorioExecutivo(): Promise<RelatorioLinha[]> {
-  const { data: inputs, error: errInputs } = await supabase
-    .from('plutos_inputs_curso')
-    .select('curso_id, ticket_medio, ponto_equilibrio, dados_hermes_parciais')
-    .gt('quantidade_disciplinas', 0);
-
-  if (errInputs) throw new Error(`Falha ao carregar relatório: ${errInputs.message}`);
-  if (!inputs || inputs.length === 0) return [];
-
-  const cursoIds = inputs.map((i) => i.curso_id);
-
-  const { data: cursos, error: errCursos } = await supabase
-    .from('hermes_cursos')
-    .select('id, nome_curso, grau, duracao_curso, quantidade_modulos, custo_total_curso, custo_mensal_medio_curso')
-    .in('id', cursoIds);
-
-  if (errCursos) throw new Error(`Falha ao carregar cursos: ${errCursos.message}`);
-
-  const { data: registros, error: errRegistros } = await supabase
-    .from('hermes_registros')
-    .select('curso_id, cargo, quantidade')
-    .in('curso_id', cursoIds);
-
-  if (errRegistros) throw new Error(`Falha ao carregar registros: ${errRegistros.message}`);
-
-  const totaisPorCurso: Record<string, { professores: number; mediadores: number }> = {};
-  for (const r of registros || []) {
-    if (!totaisPorCurso[r.curso_id]) {
-      totaisPorCurso[r.curso_id] = { professores: 0, mediadores: 0 };
-    }
-    if (r.cargo === 'Professor') totaisPorCurso[r.curso_id].professores += r.quantidade;
-    else if (r.cargo === 'Mediador') totaisPorCurso[r.curso_id].mediadores += r.quantidade;
-  }
-
-  const linhas: RelatorioLinha[] = [];
-  for (const input of inputs) {
-    const curso = (cursos || []).find((c) => c.id === input.curso_id);
-    if (!curso) continue;
-
-    const totais = totaisPorCurso[input.curso_id] || { professores: 0, mediadores: 0 };
-
-    linhas.push({
-      curso_id: curso.id,
-      nome_curso: curso.nome_curso,
-      grau: curso.grau,
-      duracao_curso: curso.duracao_curso,
-      quantidade_modulos: curso.quantidade_modulos,
-      total_professores: totais.professores,
-      total_mediadores: totais.mediadores,
-      custo_mensal_medio_curso: curso.custo_mensal_medio_curso,
-      custo_total_curso: curso.custo_total_curso,
-      custo_por_modulo: curso.quantidade_modulos > 0 ? curso.custo_total_curso / curso.quantidade_modulos : 0,
-      ticket_medio: input.ticket_medio,
-      ponto_equilibrio: input.ponto_equilibrio,
-      dados_hermes_parciais: input.dados_hermes_parciais,
-    });
-  }
-
-  return linhas.sort((a, b) => a.nome_curso.localeCompare(b.nome_curso));
+  const { data, error } = await supabase.rpc('plutos_fn_relatorio_executivo');
+  if (error) throw new Error(`Falha ao carregar relatório: ${error.message}`);
+  return (data || []) as RelatorioLinha[];
 }
 
 /**

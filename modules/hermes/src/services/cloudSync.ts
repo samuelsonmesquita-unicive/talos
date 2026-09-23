@@ -206,28 +206,6 @@ export async function fetchRegistrosFromCloud(): Promise<RegistroItem[]> {
   return rows.map(toRegistro);
 }
 
-export async function fetchSalaryConfigFromCloud(): Promise<SalaryConfig | null> {
-  const { data, error } = await supabase
-    .from('hermes_configuracao_salarial')
-    .select('professor_10h, professor_20h, professor_40h, mediador_10h, mediador_20h, mediador_40h')
-    .eq('id', 1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  return {
-    Professor: {
-      '10h': Number(data.professor_10h),
-      '20h': Number(data.professor_20h),
-      '40h': Number(data.professor_40h),
-    },
-    Mediador: {
-      '10h': Number(data.mediador_10h),
-      '20h': Number(data.mediador_20h),
-      '40h': Number(data.mediador_40h),
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Tempo real: busca inicial + nova busca (com debounce) a cada mudança na tabela
 // ---------------------------------------------------------------------------
@@ -275,8 +253,3 @@ export function subscribeToRegistros(callback: (regs: RegistroItem[]) => void): 
   return subscribeToTable('hermes_registros', fetchRegistrosFromCloud, callback);
 }
 
-export function subscribeToSalaryConfig(callback: (config: SalaryConfig) => void): () => void {
-  return subscribeToTable('hermes_configuracao_salarial', fetchSalaryConfigFromCloud, (config) => {
-    if (config) callback(config);
-  });
-}

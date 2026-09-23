@@ -3,21 +3,23 @@ import { CargaHoraria, Cargo, SalaryConfig } from '../types';
 const SALARY_CONFIG_KEY = 'unicive_gestao_demandas_salarios_v2';
 
 /**
- * FAIXAS SALARIAIS BASE (ATUALIZADA 4% - 2026/2027)
- * Valores de salário base atrelados à carga horária semanal (sem encargos):
- * Mediador: 10h (50h/mês) R$ *** | 20h (100h/mês) R$ *** | 40h (200h/mês) R$ ***
- * Professor: 10h (50h/mês) R$ *** | 20h (100h/mês) R$ *** | 40h (200h/mês) R$ ***
+ * DADO CONFIDENCIAL — os valores reais da tabela salarial NUNCA ficam no
+ * código-fonte (visível a qualquer pessoa que inspecione o bundle JS público)
+ * nem em cache local. A tabela salarial só existe no banco (Supabase), sem
+ * nenhum SELECT liberado pra clientes — só funções internas (security
+ * definer) a leem, ao computar o custo com encargos no servidor.
+ * Este objeto zerado é só um esqueleto de tipo/fallback seguro.
  */
 export const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   Professor: {
-    '10h': ***,
-    '20h': ***,
-    '40h': ***,
+    '10h': 0,
+    '20h': 0,
+    '40h': 0,
   },
   Mediador: {
-    '10h': ***,
-    '20h': ***,
-    '40h': ***,
+    '10h': 0,
+    '20h': 0,
+    '40h': 0,
   },
 };
 
@@ -112,33 +114,11 @@ export function aplicarEncargosAoSalario(salarioBase: number): number {
   return salarioBase * FATOR_CUSTO_TOTAL_DOCENTE;
 }
 
-export function getSalaryConfig(): SalaryConfig {
-  try {
-    const raw = localStorage.getItem(SALARY_CONFIG_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.Professor && parsed.Mediador) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Falha ao ler configuração salarial', e);
-  }
-  return DEFAULT_SALARY_CONFIG;
-}
-
-export function saveSalaryConfig(config: SalaryConfig): void {
-  try {
-    localStorage.setItem(SALARY_CONFIG_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.error('Falha ao salvar configuração salarial', e);
-  }
-}
-
-export function restoreDefaultSalaryConfig(): void {
-  saveSalaryConfig(DEFAULT_SALARY_CONFIG);
-}
-
+/**
+ * Nenhum dado salarial fica em cache no navegador (localStorage) — a tabela é
+ * confidencial e só existe no banco. Esta função apaga qualquer valor real
+ * que ainda esteja em cache de antes dessa correção de segurança.
+ */
 export function clearStoredSalaryConfig(): void {
   try {
     localStorage.removeItem(SALARY_CONFIG_KEY);
@@ -147,23 +127,16 @@ export function clearStoredSalaryConfig(): void {
   }
 }
 
-export const getStoredSalaryConfig = getSalaryConfig;
-export const saveStoredSalaryConfig = saveSalaryConfig;
-
 /**
- * Retorna o salário base puro da tabela salarial (sem encargos)
+ * Sempre retorna o esqueleto zerado — não há mais fonte de verdade acessível
+ * no cliente para a tabela salarial. O custo real só é conhecido pelo
+ * servidor (calculado com security definer) e mostrado após salvar.
  */
 export function buscar_salario_base(
-  carga_horaria: CargaHoraria,
-  cargo: Cargo = 'Professor'
+  _carga_horaria: CargaHoraria,
+  _cargo: Cargo = 'Professor'
 ): number {
-  const config = getSalaryConfig();
-  const cargoConfig = config[cargo] || DEFAULT_SALARY_CONFIG[cargo];
-  return (
-    cargoConfig[carga_horaria] ??
-    DEFAULT_SALARY_CONFIG[cargo]?.[carga_horaria] ??
-    0
-  );
+  return 0;
 }
 
 /**

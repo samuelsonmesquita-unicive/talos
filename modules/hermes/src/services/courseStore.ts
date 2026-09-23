@@ -7,7 +7,7 @@ import {
   normalizeCourseKey,
   recalcularCurso,
 } from '../utils/courseCalculations';
-import { clearStoredSalaryConfig, saveStoredSalaryConfig } from '../utils/salary';
+import { clearStoredSalaryConfig } from '../utils/salary';
 import {
   syncCourseToCloud,
   syncRegistroToCloud,
@@ -16,7 +16,6 @@ import {
   resetSectorInCloud,
   fetchCoursesFromCloud,
   fetchRegistrosFromCloud,
-  fetchSalaryConfigFromCloud,
 } from './cloudSync';
 
 // O localStorage é apenas um cache de leitura rápida/otimista. A fonte da verdade é o
@@ -79,7 +78,6 @@ export function clearLocalCache(): void {
   try {
     localStorage.removeItem(COURSES_STORAGE_KEY);
     localStorage.removeItem(REGISTROS_STORAGE_KEY);
-    clearStoredSalaryConfig();
   } catch (e) {
     console.error('Erro ao limpar cache local', e);
   }
@@ -88,16 +86,20 @@ export function clearLocalCache(): void {
 /**
  * Carga inicial: substitui o cache local pelos dados oficiais do Supabase.
  * Lança erro se a nuvem estiver inacessível (o chamador mostra "offline").
+ *
+ * A tabela salarial NÃO é buscada aqui — é confidencial, sem SELECT liberado
+ * pra ninguém autenticado (só funções internas do banco a leem).
  */
 export async function initializeCloudDatabase(): Promise<void> {
-  const [courses, registros, salary] = await Promise.all([
+  const [courses, registros] = await Promise.all([
     fetchCoursesFromCloud(),
     fetchRegistrosFromCloud(),
-    fetchSalaryConfigFromCloud(),
   ]);
   saveAllCourses(courses);
   saveAllRegistros(registros);
-  if (salary) saveStoredSalaryConfig(salary);
+  // Purga qualquer cache salarial real que ainda esteja no navegador de antes
+  // desta correção de segurança (dado confidencial não deve persistir aqui).
+  clearStoredSalaryConfig();
 }
 
 export function findCourseByKey(nome_curso: string, grau: Grau): CursoMestre | undefined {
@@ -297,34 +299,6 @@ export function deleteSingleRegistro(
   deleteSingleRegistroFromCloud(registroId);
 
   return cursoRecalculado;
-}
-
-/**
- * Recalcula localmente todos os registros e cursos com a tabela salarial atual.
- * O recálculo oficial é feito pelo banco quando a tabela salarial é alterada.
- */
-export function recalcularTodosOsCursos(): void {
-  const allRegistros = getAllRegistros();
-  const allCourses = getAllCourses();
-
-  const registrosAtualizados = allRegistros.map((r) => {
-    const { salario, custo } = calcularCustoRegistro(r.quantidade, r.carga_horaria, r.cargo);
-    return {
-      ...r,
-      salario,
-      custo,
-    };
-  });
-  saveAllRegistros(registrosAtualizados);
-
-  const cursosAtualizados = allCourses.map((curso) => {
-    const registrosCurso = registrosAtualizados.filter(
-      (r) => normalizeCourseKey(r.nome_curso, r.grau) === curso.id
-    );
-    const { curso: cursoRecalc } = recalcularCurso(curso, registrosCurso);
-    return cursoRecalc;
-  });
-  saveAllCourses(cursosAtualizados);
 }
 
 /**

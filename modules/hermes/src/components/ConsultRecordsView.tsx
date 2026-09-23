@@ -12,7 +12,7 @@ import {
   deleteCourse,
   deleteSingleRegistro,
 } from '../services/courseStore';
-import { formatCurrency, buscar_salario, buscar_salario_base } from '../utils/salary';
+import { formatCurrency } from '../utils/salary';
 import {
   Edit3,
   AlertTriangle,
@@ -400,20 +400,12 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                 </div>
               )}
 
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex justify-between items-center">
-                <div>
-                  <span className="text-emerald-900 block font-bold text-[11px] uppercase">
-                    Novo Custo Semestral (com encargos +***%):
-                  </span>
-                  <span className="text-[11px] text-slate-600">
-                    {editQtd} &times; {formatCurrency(buscar_salario(editCarga, recordBeingEdited.cargo))} &times; 6
-                  </span>
-                  <span className="block text-[10px] text-emerald-700">
-                    Base: {formatCurrency(buscar_salario_base(editCarga, recordBeingEdited.cargo))} + 13º/Férias/1/3 + INSS ***% + Adicionais ***%
-                  </span>
-                </div>
-                <span className="font-bold text-base text-[#117d5d] tabular">
-                  {formatCurrency((Number(editQtd) || 0) * buscar_salario(editCarga, recordBeingEdited.cargo) * 3)}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+                <span className="text-emerald-900 block font-bold text-[11px] uppercase">
+                  Alteração pendente
+                </span>
+                <span className="text-[11px] text-slate-600">
+                  {editQtd} {recordBeingEdited.cargo.toLowerCase()}(es) &bull; carga {editCarga} — custo recalculado automaticamente pelo servidor ao salvar.
                 </span>
               </div>
 
@@ -618,7 +610,6 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                   <th className="py-3 px-4">Cargo</th>
                   <th className="py-3 px-4 text-center">Qtd</th>
                   <th className="py-3 px-4">Carga</th>
-                  <th className="py-3 px-4">Salário Base</th>
                   <th className="py-3 px-4 text-right">Custo Semestral</th>
                   <th className="py-3 px-4 text-center">Ações</th>
                 </tr>
@@ -650,9 +641,6 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                     </td>
                     <td className="py-3 px-4 font-bold text-[#239371]">
                       {reg.carga_horaria}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 tabular">
-                      {formatCurrency(reg.salario)}
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900 tabular">
                       {formatCurrency(reg.custo)}
