@@ -137,16 +137,18 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
 
-              <button
-                id="btn-tabela-salarial"
-                onClick={onOpenSalaryModal}
-                title="Configuração das Faixas Salariais (Acesso Restrito a Privilégios)"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] bg-[#ebf7f2] hover:bg-[#d8f0e5] px-2.5 py-1.5 rounded-lg border border-[#239371]/25 transition-colors cursor-pointer whitespace-nowrap"
-              >
-                <Coins className="w-3.5 h-3.5 text-[#239371] shrink-0" />
-                <span className="whitespace-nowrap">Salários</span>
-                <Lock className="w-3 h-3 text-amber-600 ml-0.5 shrink-0" />
-              </button>
+              {isAdmin && (
+                <button
+                  id="btn-tabela-salarial"
+                  onClick={onOpenSalaryModal}
+                  title="Configuração das Faixas Salariais (Acesso Restrito a Privilégios)"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] bg-[#ebf7f2] hover:bg-[#d8f0e5] px-2.5 py-1.5 rounded-lg border border-[#239371]/25 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Coins className="w-3.5 h-3.5 text-[#239371] shrink-0" />
+                  <span className="whitespace-nowrap">Salários</span>
+                  <Lock className="w-3 h-3 text-amber-600 ml-0.5 shrink-0" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -284,14 +286,16 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="whitespace-nowrap">Relatório</span>
             </button>
           )}
-          <button
-            onClick={onOpenSalaryModal}
-            title="Tabela Salarial"
-            className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#239371] hover:bg-slate-50 transition-colors cursor-pointer"
-          >
-            <Coins className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">Salários</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={onOpenSalaryModal}
+              title="Tabela Salarial"
+              className="h-full flex items-center gap-1.5 px-3 whitespace-nowrap text-xs font-semibold border-b-2 border-transparent text-[#239371] hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <Coins className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Salários</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
