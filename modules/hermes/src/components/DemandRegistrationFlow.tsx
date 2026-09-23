@@ -758,7 +758,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   }}
                   className="btn-unicive-outline flex-1 py-3 px-4 text-sm font-bold"
                 >
-                  Não, voltar ao início
+                  {showSetorCompletedPopup.setor === 'Pedagógico'
+                    ? 'Não, registrar disciplinas para gravação'
+                    : 'Não, voltar ao início'}
                 </button>
                 <button
                   type="button"
