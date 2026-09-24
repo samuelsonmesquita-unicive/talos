@@ -11,15 +11,19 @@ import {
   HelpCircle,
   Clock,
   Layers,
+  Pencil,
+  Briefcase,
 } from 'lucide-react';
 import { CursoMestre, Grau, Setor } from '../types';
 import { parseDurationInput } from '../utils/salary';
 import {
   findCourseByKey,
   getAllCourses,
+  getRegistrosForCourse,
   resetSectorData,
   upsertCourseMaster,
 } from '../services/courseStore';
+import { SemEstagioAviso } from './SemEstagioAviso';
 
 const NOVO_CADASTRO = '__novo_cadastro__';
 
@@ -28,12 +32,14 @@ interface Step1InitialEntryProps {
   onStartRegistration?: (
     curso: CursoMestre,
     setorAlvo: Setor,
-    retomada: boolean
+    retomada: boolean,
+    abrirEtapaEstagio?: boolean
   ) => void;
   onStartDemandFlow?: (
     curso: CursoMestre,
     setorAlvo: Setor,
-    retomada: boolean
+    retomada: boolean,
+    abrirEtapaEstagio?: boolean
   ) => void;
   onConsultRecords?: (curso: CursoMestre) => void;
   onGoToConsult?: (curso?: CursoMestre) => void;
@@ -52,12 +58,13 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
   const handleStartFlow = (
     curso: CursoMestre,
     setorAlvo: Setor,
-    retomada: boolean
+    retomada: boolean,
+    abrirEtapaEstagio = false
   ) => {
     if (onStartRegistration) {
-      onStartRegistration(curso, setorAlvo, retomada);
+      onStartRegistration(curso, setorAlvo, retomada, abrirEtapaEstagio);
     } else if (onStartDemandFlow) {
-      onStartDemandFlow(curso, setorAlvo, retomada);
+      onStartDemandFlow(curso, setorAlvo, retomada, abrirEtapaEstagio);
     }
   };
 
@@ -76,13 +83,18 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
   const [duracaoInput, setDuracaoInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Estados de verificação e cenários da Seção 4
+  // Setor de quem está preenchendo: cada setor segue só o seu fluxo
+  const [setorUsuario, setSetorUsuario] = useState<Setor | null>(null);
+
+  // Estados de verificação e cenários da Seção 4 (agora por setor)
   const [durationLockWarning, setDurationLockWarning] = useState<string | null>(null);
   const [activeCourse, setActiveCourse] = useState<CursoMestre | null>(null);
   const [dialogScenario, setDialogScenario] = useState<
-    '4.1' | '4.2' | '4.3' | '4.4' | '4.5' | null
+    '4.4' | 'pedagogico-completo' | 'estagio-completo' | 'sem-estagio' | null
   >(null);
   const [incompletedSectorName, setIncompletedSectorName] = useState<Setor>('Pedagógico');
+  // Pedagógico com todos os módulos salvos, faltando só as disciplinas de estágio
+  const [faltaSoEstagio, setFaltaSoEstagio] = useState(false);
 
   const nomesCadastrados = Array.from(
     new Set(getAllCourses().map((c) => c.nome_curso))
@@ -123,10 +135,39 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     setValidationError(null);
     setDurationLockWarning(null);
     setDialogScenario(null);
+    setFaltaSoEstagio(false);
+
+    if (!setorUsuario) {
+      setValidationError('Informe o seu setor: Pedagógico ou Estágio.');
+      return;
+    }
 
     const nomeTrim = nomeCurso.trim();
     if (!nomeTrim) {
       setValidationError('Por favor, digite o nome do curso.');
+      return;
+    }
+
+    const existing = findCourseByKey(nomeTrim, grau);
+
+    // Estágio: nunca cria nem altera curso; só preenche os módulos com estágio
+    // cadastrados pelo Pedagógico.
+    if (setorUsuario === 'Estágio') {
+      setActiveCourse(existing ?? null);
+      if (!existing || !existing.tem_estagio) {
+        setDialogScenario('sem-estagio');
+        return;
+      }
+      if (existing.status_estagio === 'completo') {
+        setDialogScenario('estagio-completo');
+        return;
+      }
+      if (existing.status_estagio === 'incompleto') {
+        setIncompletedSectorName('Estágio');
+        setDialogScenario('4.4');
+        return;
+      }
+      handleStartFlow(existing, 'Estágio', false);
       return;
     }
 
@@ -135,8 +176,6 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
       setValidationError('Por favor, informe uma duração válida em anos (Ex.: 2,5 anos ou 4 anos).');
       return;
     }
-
-    const existing = findCourseByKey(nomeTrim, grau);
 
     // Seção 3.2: Trava de duração
     const { curso, duracao_bloqueada, duracao_original } = upsertCourseMaster(
@@ -153,52 +192,29 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
 
     setActiveCourse(curso);
 
-    if (!existing) {
+    if (!existing || curso.status_pedagogico === 'não iniciado') {
       handleStartFlow(curso, 'Pedagógico', false);
       return;
     }
 
-    const pedStatus = curso.status_pedagogico;
-    const estStatus = curso.status_estagio;
-
-    if (pedStatus === 'não iniciado' && estStatus === 'não iniciado') {
-      handleStartFlow(curso, 'Pedagógico', false);
+    if (curso.status_pedagogico === 'completo') {
+      setDialogScenario('pedagogico-completo');
       return;
     }
 
-    if (pedStatus === 'completo' && estStatus === 'completo') {
-      setDialogScenario('4.1');
-      return;
-    }
-
-    if (pedStatus === 'completo' && estStatus === 'não iniciado') {
-      setDialogScenario('4.2');
-      return;
-    }
-
-    if (estStatus === 'completo' && pedStatus === 'não iniciado') {
-      setDialogScenario('4.3');
-      return;
-    }
-
-    if (pedStatus === 'incompleto' && estStatus === 'incompleto') {
-      setDialogScenario('4.5');
-      return;
-    }
-
-    if (pedStatus === 'incompleto') {
-      setIncompletedSectorName('Pedagógico');
-      setDialogScenario('4.4');
-      return;
-    }
-
-    if (estStatus === 'incompleto') {
-      setIncompletedSectorName('Estágio');
-      setDialogScenario('4.4');
-      return;
-    }
-
-    handleStartFlow(curso, 'Pedagógico', false);
+    // Pedagógico incompleto: pode faltar só a etapa de estágio (ex.: cursos cadastrados
+    // antes dessa etapa existir)
+    const regsPed = getRegistrosForCourse(curso.nome_curso, curso.grau).filter(
+      (r) => r.setor === 'Pedagógico'
+    );
+    const modulosOk = Array.from({ length: curso.quantidade_modulos }, (_, i) => i + 1).every(
+      (m) =>
+        regsPed.some((r) => r.modulo === m && r.cargo === 'Professor') &&
+        regsPed.some((r) => r.modulo === m && r.cargo === 'Mediador')
+    );
+    setFaltaSoEstagio(modulosOk && curso.tem_estagio == null);
+    setIncompletedSectorName('Pedagógico');
+    setDialogScenario('4.4');
   };
 
   const handleRetomarSetorIncompleto = () => {
@@ -208,6 +224,14 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
 
   const handleReiniciarSetorDoZero = () => {
     if (!activeCourse) return;
+    if (
+      incompletedSectorName === 'Pedagógico' &&
+      !window.confirm(
+        'Reiniciar o Pedagógico apaga todos os módulos do Pedagógico, as disciplinas de estágio e os lançamentos do Estágio deste curso. Deseja continuar?'
+      )
+    ) {
+      return;
+    }
     const cursoRecalculado = resetSectorData(
       activeCourse.nome_curso,
       activeCourse.grau,
@@ -275,6 +299,44 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
         </div>
 
         <form onSubmit={handleVerificarEProsseguir} className="space-y-6">
+          {/* Setor de quem está preenchendo */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+              Seu setor
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {(['Pedagógico', 'Estágio'] as Setor[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  id={`btn-setor-usuario-${s === 'Pedagógico' ? 'pedagogico' : 'estagio'}`}
+                  onClick={() => {
+                    setSetorUsuario(s);
+                    setValidationError(null);
+                    setDialogScenario(null);
+                  }}
+                  className={`py-3 px-4 rounded-lg text-sm font-semibold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    setorUsuario === s
+                      ? 'bg-[#ebf7f2] text-[#239371] border-[#239371] ring-2 ring-[#239371]/20 font-bold shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {s === 'Pedagógico' ? (
+                    <BookOpen className="w-4 h-4 text-[#239371]" />
+                  ) : (
+                    <Briefcase className="w-4 h-4 text-[#e7972a]" />
+                  )}
+                  <span>{s}</span>
+                </button>
+              ))}
+            </div>
+            {setorUsuario === 'Estágio' && (
+              <p className="mt-2 text-[11px] text-slate-500">
+                O Estágio preenche só os módulos em que o Pedagógico cadastrou disciplinas de estágio.
+              </p>
+            )}
+          </div>
+
           {/* Nome do Curso */}
           <div>
             <label
@@ -379,7 +441,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             <input
               id="input-duracao-curso"
               type="text"
-              required
+              required={setorUsuario !== 'Estágio'}
               value={duracaoInput}
               onChange={(e) => setDuracaoInput(e.target.value)}
               placeholder="Ex.: 2,5 anos ou 4 anos"
@@ -431,8 +493,36 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
         </form>
       </div>
 
+      {/* Estágio: curso sem carga horária de estágio cadastrada pelo Pedagógico */}
+      {dialogScenario === 'sem-estagio' && (
+        <div className="mt-8">
+          <SemEstagioAviso pendentePedagogico={!activeCourse || activeCourse.tem_estagio == null}>
+            {activeCourse && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleConsult(activeCourse)}
+                  className="btn-unicive-outline text-xs py-2 px-4"
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Consultar Registros
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReport(activeCourse)}
+                  className="btn-unicive-outline text-xs py-2 px-4"
+                >
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Ver Relatório do Curso
+                </button>
+              </>
+            )}
+          </SemEstagioAviso>
+        </div>
+      )}
+
       {/* Cenários de Diálogo da Seção 4 (Registros Anteriores) */}
-      {dialogScenario && activeCourse && (
+      {dialogScenario && dialogScenario !== 'sem-estagio' && activeCourse && (
         <div className="mt-8 card-unicive p-6 border-2 border-emerald-200 shadow-lg">
           <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -452,22 +542,26 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             {activeCourse.nome_curso} ({activeCourse.grau})
           </p>
 
-          {/* 4.1. Ambos os setores completos */}
-          {dialogScenario === '4.1' && (
+          {/* Setor do usuário já concluído */}
+          {(dialogScenario === 'pedagogico-completo' || dialogScenario === 'estagio-completo') && (
             <div className="space-y-4">
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950">
                 <div className="flex items-center gap-2 font-bold text-sm text-[#117d5d] mb-1">
                   <CheckCircle2 className="w-4 h-4 text-[#239371]" />
-                  <span>Cadastro Concluído</span>
+                  <span>{dialogScenario === 'pedagogico-completo' ? 'Pedagógico' : 'Estágio'} concluído</span>
                 </div>
                 <p>
-                  Todos os módulos dos setores Pedagógico e Estágio já foram devidamente preenchidos e salvos.
+                  {dialogScenario === 'pedagogico-completo'
+                    ? activeCourse.tem_estagio
+                      ? 'Todos os módulos e as disciplinas de estágio do Pedagógico já foram preenchidos.'
+                      : 'Todos os módulos do Pedagógico já foram preenchidos. O curso foi informado como sem estágio.'
+                    : 'Todos os módulos com estágio já foram preenchidos.'}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <button
-                  id="btn-cenario-4-1-consultar"
+                  id="btn-cenario-concluido-consultar"
                   onClick={() => handleConsult(activeCourse)}
                   className="btn-unicive-outline flex-1 text-xs"
                 >
@@ -476,82 +570,26 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                 </button>
                 <button
                   onClick={() => handleReport(activeCourse)}
-                  className="btn-unicive-primary flex-1 text-xs"
+                  className="btn-unicive-outline flex-1 text-xs"
                 >
                   <BookOpen className="w-4 h-4 mr-2" />
                   Ver Relatório do Curso
                 </button>
+                {dialogScenario === 'pedagogico-completo' && (
+                  <button
+                    id="btn-cenario-editar-estagio"
+                    onClick={() => handleStartFlow(activeCourse, 'Pedagógico', true, true)}
+                    className="btn-unicive-primary flex-1 text-xs"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Editar disciplinas de estágio
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {/* 4.2. Pedagógico completo + Estágio não iniciado */}
-          {dialogScenario === '4.2' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
-                <div className="font-bold text-slate-900 text-sm mb-1">
-                  Há Registros Anteriores do Setor Pedagógico
-                </div>
-                <p>
-                  O setor Pedagógico está completo ({activeCourse.quantidade_modulos} módulos). O setor de Estágio ainda não foi iniciado.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  id="btn-cenario-4-2-consultar"
-                  onClick={() => handleConsult(activeCourse)}
-                  className="btn-unicive-outline flex-1 text-xs"
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Consultar Pedagógico
-                </button>
-                <button
-                  id="btn-cenario-4-2-continuar-estagio"
-                  onClick={() => handleStartFlow(activeCourse, 'Estágio', true)}
-                  className="btn-unicive-primary flex-1 text-xs"
-                >
-                  <span>Continuar com Estágio</span>
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 4.3. Estágio completo + Pedagógico não iniciado */}
-          {dialogScenario === '4.3' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
-                <div className="font-bold text-slate-900 text-sm mb-1">
-                  Há Registros Anteriores do Setor Estágio
-                </div>
-                <p>
-                  O setor de Estágio está completo ({activeCourse.quantidade_modulos} módulos). O setor Pedagógico ainda não foi iniciado.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  id="btn-cenario-4-3-consultar"
-                  onClick={() => handleConsult(activeCourse)}
-                  className="btn-unicive-outline flex-1 text-xs"
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Consultar Estágio
-                </button>
-                <button
-                  id="btn-cenario-4-3-continuar-pedagogico"
-                  onClick={() => handleStartFlow(activeCourse, 'Pedagógico', true)}
-                  className="btn-unicive-primary flex-1 text-xs"
-                >
-                  <span>Continuar com Pedagógico</span>
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 4.4. Um setor incompleto */}
+          {/* 4.4. Setor do usuário incompleto */}
           {dialogScenario === '4.4' && (
             <div className="space-y-4">
               <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950">
@@ -559,7 +597,16 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   Cadastro de {incompletedSectorName} incompleto. Deseja continuar de onde parou?
                 </div>
                 <p>
-                  Selecione <strong>Sim</strong> para retomar a partir do próximo módulo pendente, ou <strong>Não</strong> para reiniciar e redefinir os dados deste setor.
+                  {faltaSoEstagio ? (
+                    <>
+                      Os módulos já foram preenchidos; <strong>faltam apenas as disciplinas de estágio</strong>.
+                      Selecione <strong>Sim</strong> para informá-las agora.
+                    </>
+                  ) : (
+                    <>
+                      Selecione <strong>Sim</strong> para retomar a partir do próximo módulo pendente, ou <strong>Não</strong> para reiniciar e redefinir os dados deste setor.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -570,7 +617,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   className="btn-unicive-orange flex-1 text-xs"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Sim (Continuar de onde parou)
+                  {faltaSoEstagio ? 'Sim (Informar disciplinas de estágio)' : 'Sim (Continuar de onde parou)'}
                 </button>
 
                 <button
@@ -580,37 +627,6 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Não (Reiniciar do zero)
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 4.5. Ambos os setores incompletos */}
-          {dialogScenario === '4.5' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950">
-                <div className="font-bold text-sm text-amber-900 mb-1">
-                  Ambos os setores possuem módulos pendentes
-                </div>
-                <p>
-                  Escolha por qual setor deseja prosseguir o preenchimento:
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  id="btn-cenario-4-5-continuar-pedagogico"
-                  onClick={() => handleStartFlow(activeCourse, 'Pedagógico', true)}
-                  className="btn-unicive-primary flex-1 text-xs"
-                >
-                  Continuar Pedagógico
-                </button>
-                <button
-                  id="btn-cenario-4-5-continuar-estagio"
-                  onClick={() => handleStartFlow(activeCourse, 'Estágio', true)}
-                  className="btn-unicive-orange flex-1 text-xs"
-                >
-                  Continuar Estágio
                 </button>
               </div>
             </div>

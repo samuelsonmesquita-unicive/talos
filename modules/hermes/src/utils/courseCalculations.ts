@@ -1,5 +1,6 @@
 import {
   CursoMestre,
+  DisciplinaEstagio,
   Grau,
   RegistroItem,
   SectorStatus,
@@ -36,13 +37,36 @@ function custoOuNaN(value: unknown): number {
   return typeof value === 'number' ? value : NaN;
 }
 
+/** Módulos que têm disciplina de estágio (em ordem). Só esses o setor Estágio pode editar. */
+export function modulosComEstagio(disciplinas: DisciplinaEstagio[]): number[] {
+  return Array.from(new Set(disciplinas.map((d) => d.modulo))).sort((a, b) => a - b);
+}
+
+/** Quantidade de disciplinas e carga horária de estágio por módulo e no curso inteiro. */
+export function totaisEstagio(disciplinas: DisciplinaEstagio[]): {
+  porModulo: Map<number, { qtd: number; ch: number }>;
+  totalCh: number;
+  modulos: number[];
+} {
+  const porModulo = new Map<number, { qtd: number; ch: number }>();
+  let totalCh = 0;
+  for (const d of disciplinas) {
+    const atual = porModulo.get(d.modulo) ?? { qtd: 0, ch: 0 };
+    porModulo.set(d.modulo, { qtd: atual.qtd + 1, ch: atual.ch + d.carga_horaria });
+    totalCh += d.carga_horaria;
+  }
+  return { porModulo, totalCh, modulos: modulosComEstagio(disciplinas) };
+}
+
 /**
- * Agrega os módulos de um setor específico
+ * Agrega os módulos de um setor específico. modulosPermitidos (setor Estágio) limita
+ * a contagem de status e custo aos módulos com disciplina de estágio.
  */
 export function agregarModulosSetor(
   setor: Setor,
   quantidade_modulos: number,
-  registros: RegistroItem[]
+  registros: RegistroItem[],
+  modulosPermitidos?: Set<number>
 ): {
   modulos: ModuloAgregado[];
   modulos_salvos: number;
@@ -50,7 +74,10 @@ export function agregarModulosSetor(
   custo_mensal_medio: number;
   status: SectorStatus;
 } {
-  const setorRegistros = registros.filter((r) => r.setor === setor);
+  const setorRegistros = registros.filter(
+    (r) => r.setor === setor && (!modulosPermitidos || modulosPermitidos.has(r.modulo))
+  );
+  const esperados = modulosPermitidos ? modulosPermitidos.size : quantidade_modulos;
   const modulos: ModuloAgregado[] = [];
 
   let modulosSalvosContagem = 0;
@@ -58,6 +85,20 @@ export function agregarModulosSetor(
   let somaCustoMensal = 0;
 
   for (let s = 1; s <= quantidade_modulos; s++) {
+    if (modulosPermitidos && !modulosPermitidos.has(s)) {
+      modulos.push({
+        modulo: s,
+        custo_professor: 0,
+        custo_mediador: 0,
+        custo_modulo: 0,
+        custo_mensal_modulo: 0,
+        professor_salvo: false,
+        mediador_salvo: false,
+        concluido: false,
+        sem_estagio: true,
+      });
+      continue;
+    }
     const regProf = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Professor');
     const regMed = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Mediador');
 
@@ -94,13 +135,13 @@ export function agregarModulosSetor(
   // Status do setor segundo Seção 3.1:
   // 0 -> não iniciado
   // 1 a quantidade_modulos - 1 -> incompleto
-  // = quantidade_modulos -> completo
+  // = quantidade_modulos -> completo (no Estágio: = módulos com disciplina de estágio)
   let status: SectorStatus = 'não iniciado';
   if (modulosSalvosContagem === 0) {
     // Atenção: se tiver professor salvo mas não mediador, modulosSalvosContagem é 0 mas há dados pendentes
     const temAlgumRegistro = setorRegistros.length > 0;
     status = temAlgumRegistro ? 'incompleto' : 'não iniciado';
-  } else if (modulosSalvosContagem < quantidade_modulos) {
+  } else if (modulosSalvosContagem < esperados) {
     status = 'incompleto';
   } else {
     status = 'completo';
@@ -122,10 +163,16 @@ export function agregarModulosSetor(
 /**
  * Realiza o recálculo em cascata completo do curso (seção 6.2)
  * Atualiza registros -> módulos -> setores -> curso
+ *
+ * Espelha as regras do banco (hermes_fn_recalcular_curso):
+ *   - Pedagógico só fica completo depois de informar o estágio (tem_estagio != null).
+ *   - Estágio: null -> não iniciado; false -> completo com custo zero;
+ *     true -> conta só os módulos com disciplina de estágio.
  */
 export function recalcularCurso(
   cursoAtual: CursoMestre,
-  registros: RegistroItem[]
+  registros: RegistroItem[],
+  disciplinas: DisciplinaEstagio[]
 ): {
   curso: CursoMestre;
   setorPedagogico: SetorAgregado;
@@ -135,6 +182,9 @@ export function recalcularCurso(
 
   // 1 e 2 e 3. Agrega Pedagógico
   const pedData = agregarModulosSetor('Pedagógico', qtdModulos, registros);
+  if (pedData.status === 'completo' && cursoAtual.tem_estagio == null) {
+    pedData.status = 'incompleto';
+  }
   const setorPedagogico: SetorAgregado = {
     setor: 'Pedagógico',
     status: pedData.status,
@@ -145,7 +195,13 @@ export function recalcularCurso(
   };
 
   // 1 e 2 e 3. Agrega Estágio
-  const estData = agregarModulosSetor('Estágio', qtdModulos, registros);
+  const permitidos = new Set(cursoAtual.tem_estagio ? modulosComEstagio(disciplinas) : []);
+  const estData = agregarModulosSetor('Estágio', qtdModulos, registros, permitidos);
+  if (cursoAtual.tem_estagio == null) {
+    estData.status = 'não iniciado';
+  } else if (!cursoAtual.tem_estagio) {
+    estData.status = 'completo';
+  }
   const setorEstagio: SetorAgregado = {
     setor: 'Estágio',
     status: estData.status,
@@ -246,8 +302,9 @@ export function migrarCursos(cursos: LegacyCurso[]): CursoMestre[] {
       custo_total_curso: custoOuNaN(legado.custo_total_curso),
       custo_mensal_medio_curso: custoOuNaN(legado.custo_mensal_medio_curso),
     };
-    if (c.quantidade_modulos !== undefined) return c as CursoMestre;
-    const { quantidade_semestres, ...resto } = c;
+    const comEstagio = { ...c, tem_estagio: c.tem_estagio ?? null };
+    if (comEstagio.quantidade_modulos !== undefined) return comEstagio as CursoMestre;
+    const { quantidade_semestres, ...resto } = comEstagio;
     const semestres = quantidade_semestres ?? Math.round((c.duracao_curso || 0) * 2);
     return { ...(resto as CursoMestre), quantidade_modulos: semestres * 2 };
   });

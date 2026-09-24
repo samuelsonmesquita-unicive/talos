@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { CursoMestre, RegistroItem, SalaryConfig } from '../types';
+import { CursoMestre, DisciplinaEstagio, RegistroItem, SalaryConfig } from '../types';
 
 // ---------------------------------------------------------------------------
 // Erros de nuvem: escritas são "fire-and-forget" (a interface é otimista), então
@@ -52,7 +52,9 @@ function enqueueWrite(
 // (o papel é checado no banco). Para os demais, os campos ficam NaN ("—").
 const CURSO_COLUMNS =
   'id, nome_curso, grau, duracao_curso, quantidade_modulos, status_pedagogico, status_estagio, ' +
-  'status_geral, dados_parciais, criado_em, atualizado_em';
+  'status_geral, dados_parciais, tem_estagio, criado_em, atualizado_em';
+
+const DISCIPLINA_ESTAGIO_COLUMNS = 'id, curso_id, modulo, nome, carga_horaria';
 
 const REGISTRO_COLUMNS =
   'id, indice, curso_id, setor, modulo, cargo, quantidade, carga_horaria, ' +
@@ -83,8 +85,19 @@ function toCurso(row: any): CursoMestre {
     custo_total_curso: Number(row.custo_total_curso),
     custo_mensal_medio_curso: Number(row.custo_mensal_medio_curso),
     dados_parciais: Boolean(row.dados_parciais),
+    tem_estagio: row.tem_estagio ?? null,
     criado_em: row.criado_em,
     atualizado_em: row.atualizado_em,
+  };
+}
+
+function toDisciplinaEstagio(row: any): DisciplinaEstagio {
+  return {
+    id: row.id,
+    curso_id: row.curso_id,
+    modulo: Number(row.modulo),
+    nome: row.nome,
+    carga_horaria: Number(row.carga_horaria),
   };
 }
 
@@ -162,6 +175,26 @@ export function syncRegistroToCloud(registro: RegistroItem): Promise<void> {
   );
 }
 
+/**
+ * Pedagógico informa o estágio do curso (substitui a lista inteira). O banco apaga os
+ * lançamentos do Estágio em módulos que ficaram sem disciplina e recalcula o curso.
+ */
+export function saveEstagioToCloud(
+  cursoId: string,
+  temEstagio: boolean,
+  disciplinas: Pick<DisciplinaEstagio, 'nome' | 'modulo' | 'carga_horaria'>[]
+): Promise<void> {
+  return enqueueWrite('Erro ao salvar as disciplinas de estágio na nuvem', () =>
+    supabase.rpc('hermes_set_estagio', {
+      p_curso_id: cursoId,
+      p_tem_estagio: temEstagio,
+      p_disciplinas: temEstagio
+        ? disciplinas.map((d) => ({ nome: d.nome, modulo: d.modulo, carga_horaria: d.carga_horaria }))
+        : [],
+    })
+  );
+}
+
 /** Somente admin (validado no banco). */
 export function deleteCourseFromCloud(cursoId: string): Promise<void> {
   return enqueueWrite('Erro ao excluir o curso na nuvem', () =>
@@ -236,6 +269,17 @@ export async function fetchRegistrosFromCloud(): Promise<RegistroItem[]> {
   ]);
   return rows.map((row) => toRegistro({ ...row, ...custos.get(row.id) }));
 }
+
+export async function fetchDisciplinasEstagioFromCloud(): Promise<DisciplinaEstagio[]> {
+  const rows = await fetchAllRows<any>((from, to) =>
+    supabase
+      .from('hermes_estagio_disciplinas')
+      .select(DISCIPLINA_ESTAGIO_COLUMNS)
+      .order('id')
+      .range(from, to)
+  );
+  return rows.map(toDisciplinaEstagio);
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------------------------------------------------------------------------
@@ -285,3 +329,8 @@ export function subscribeToRegistros(callback: (regs: RegistroItem[]) => void): 
   return subscribeToTable('hermes_registros', fetchRegistrosFromCloud, callback);
 }
 
+export function subscribeToDisciplinasEstagio(
+  callback: (disciplinas: DisciplinaEstagio[]) => void
+): () => void {
+  return subscribeToTable('hermes_estagio_disciplinas', fetchDisciplinasEstagioFromCloud, callback);
+}

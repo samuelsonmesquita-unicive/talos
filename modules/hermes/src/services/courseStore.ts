@@ -1,8 +1,9 @@
-import { CargaHoraria, CursoMestre, Grau, RegistroItem, Setor } from '../types';
+import { CargaHoraria, CursoMestre, DisciplinaEstagio, Grau, RegistroItem, Setor } from '../types';
 import {
   calcularCustoRegistro,
   migrarCursos,
   migrarRegistros,
+  modulosComEstagio,
   MODULOS_POR_ANO,
   normalizeCourseKey,
   recalcularCurso,
@@ -16,6 +17,8 @@ import {
   resetSectorInCloud,
   fetchCoursesFromCloud,
   fetchRegistrosFromCloud,
+  fetchDisciplinasEstagioFromCloud,
+  saveEstagioToCloud,
 } from './cloudSync';
 
 // O localStorage é apenas um cache de leitura rápida/otimista. A fonte da verdade é o
@@ -23,6 +26,7 @@ import {
 // sobrescreve este cache com os valores oficiais.
 const COURSES_STORAGE_KEY = 'unicive_demandas_cursos_v2';
 const REGISTROS_STORAGE_KEY = 'unicive_demandas_registros_v2';
+const ESTAGIO_STORAGE_KEY = 'unicive_demandas_estagio_v1';
 
 /** UUID v4 (funciona também em contextos não seguros, onde crypto.randomUUID não existe). */
 function newId(): string {
@@ -57,6 +61,26 @@ export function getAllRegistros(): RegistroItem[] {
   return [];
 }
 
+export function getAllDisciplinasEstagio(): DisciplinaEstagio[] {
+  try {
+    const raw = localStorage.getItem(ESTAGIO_STORAGE_KEY);
+    if (raw !== null) {
+      return JSON.parse(raw) as DisciplinaEstagio[];
+    }
+  } catch (e) {
+    console.error('Erro ao ler disciplinas de estágio do localStorage', e);
+  }
+  return [];
+}
+
+export function saveAllDisciplinasEstagio(disciplinas: DisciplinaEstagio[]): void {
+  try {
+    localStorage.setItem(ESTAGIO_STORAGE_KEY, JSON.stringify(disciplinas));
+  } catch (e) {
+    console.error('Erro ao salvar disciplinas de estágio', e);
+  }
+}
+
 export function saveAllCourses(courses: CursoMestre[]): void {
   try {
     localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(migrarCursos(courses)));
@@ -78,6 +102,7 @@ export function clearLocalCache(): void {
   try {
     localStorage.removeItem(COURSES_STORAGE_KEY);
     localStorage.removeItem(REGISTROS_STORAGE_KEY);
+    localStorage.removeItem(ESTAGIO_STORAGE_KEY);
   } catch (e) {
     console.error('Erro ao limpar cache local', e);
   }
@@ -91,12 +116,14 @@ export function clearLocalCache(): void {
  * pra ninguém autenticado (só funções internas do banco a leem).
  */
 export async function initializeCloudDatabase(): Promise<void> {
-  const [courses, registros] = await Promise.all([
+  const [courses, registros, disciplinas] = await Promise.all([
     fetchCoursesFromCloud(),
     fetchRegistrosFromCloud(),
+    fetchDisciplinasEstagioFromCloud(),
   ]);
   saveAllCourses(courses);
   saveAllRegistros(registros);
+  saveAllDisciplinasEstagio(disciplinas);
   // Purga qualquer cache salarial real que ainda esteja no navegador de antes
   // desta correção de segurança (dado confidencial não deve persistir aqui).
   clearStoredSalaryConfig();
@@ -120,6 +147,23 @@ export function getRegistrosForCourse(nome_curso: string, grau: Grau): RegistroI
     if (a.cargo !== b.cargo) return a.cargo === 'Professor' ? -1 : 1;
     return a.indice - b.indice;
   });
+}
+
+/** Disciplinas de estágio do curso, ordenadas por módulo. */
+export function getDisciplinasEstagio(nome_curso: string, grau: Grau): DisciplinaEstagio[] {
+  const key = normalizeCourseKey(nome_curso, grau);
+  return getAllDisciplinasEstagio()
+    .filter((d) => d.curso_id === key)
+    .sort((a, b) => a.modulo - b.modulo || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/**
+ * Módulos que o setor Estágio pode editar: os que têm disciplina de estágio
+ * (vazio se o Pedagógico não informou ou se o curso não tem estágio).
+ */
+export function getModulosEstagio(curso: CursoMestre): number[] {
+  if (!curso.tem_estagio) return [];
+  return modulosComEstagio(getDisciplinasEstagio(curso.nome_curso, curso.grau));
 }
 
 /**
@@ -154,6 +198,7 @@ export function upsertCourseMaster(
       custo_total_curso: 0,
       custo_mensal_medio_curso: 0,
       dados_parciais: true,
+      tem_estagio: null,
       criado_em: agora,
       atualizado_em: agora,
     };
@@ -256,7 +301,7 @@ export function saveOrUpdateRegistro(
   const registrosCurso = newRegistrosList.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
-  const { curso: cursoRecalculado } = recalcularCurso(course, registrosCurso);
+  const { curso: cursoRecalculado } = recalcularCurso(course, registrosCurso, getDisciplinasEstagio(course.nome_curso, course.grau));
 
   const newCoursesList = allCourses.map((c) =>
     c.id === key ? cursoRecalculado : c
@@ -289,7 +334,11 @@ export function deleteSingleRegistro(
   const registrosRestantes = updatedRegistros.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
-  const { curso: cursoRecalculado } = recalcularCurso(course, registrosRestantes);
+  const { curso: cursoRecalculado } = recalcularCurso(
+    course,
+    registrosRestantes,
+    getDisciplinasEstagio(course.nome_curso, course.grau)
+  );
 
   const updatedCourses = allCourses.map((c) =>
     c.id === key ? cursoRecalculado : c
@@ -318,19 +367,32 @@ export function resetSectorData(
     throw new Error('Curso não encontrado.');
   }
 
+  // Reiniciar o Pedagógico também limpa o estágio informado por ele e os
+  // lançamentos do Estágio, que dependem dessa declaração (igual ao banco).
+  const limpaEstagio = setor === 'Pedagógico';
   const updatedRegistros = allRegistros.filter(
     (r) =>
       !(
         normalizeCourseKey(r.nome_curso, r.grau) === key &&
-        r.setor === setor
+        (r.setor === setor || (limpaEstagio && r.setor === 'Estágio'))
       )
   );
   saveAllRegistros(updatedRegistros);
 
+  let cursoBase = course;
+  if (limpaEstagio) {
+    saveAllDisciplinasEstagio(getAllDisciplinasEstagio().filter((d) => d.curso_id !== key));
+    cursoBase = { ...course, tem_estagio: null };
+  }
+
   const registrosRestantes = updatedRegistros.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
-  const { curso: cursoRecalculado } = recalcularCurso(course, registrosRestantes);
+  const { curso: cursoRecalculado } = recalcularCurso(
+    cursoBase,
+    registrosRestantes,
+    getDisciplinasEstagio(course.nome_curso, course.grau)
+  );
 
   const updatedCourses = allCourses.map((c) =>
     c.id === key ? cursoRecalculado : c
@@ -364,12 +426,69 @@ export function deleteCourse(nome_curso: string, grau: Grau): void {
 
   saveAllCourses(filteredCourses);
   saveAllRegistros(filteredRegistros);
+  saveAllDisciplinasEstagio(getAllDisciplinasEstagio().filter((d) => d.curso_id !== key));
 
   deleteCourseFromCloud(key);
 }
 
 /**
- * Retorna o próximo módulo pendente
+ * Pedagógico informa o estágio do curso (etapa final do setor). Substitui a lista de
+ * disciplinas e remove os lançamentos do Estágio em módulos que ficaram sem estágio.
+ * O cálculo local é otimista; o banco (hermes_set_estagio) faz o oficial.
+ */
+export function saveEstagio(
+  nome_curso: string,
+  grau: Grau,
+  temEstagio: boolean,
+  disciplinas: Pick<DisciplinaEstagio, 'nome' | 'modulo' | 'carga_horaria'>[]
+): CursoMestre {
+  const key = normalizeCourseKey(nome_curso, grau);
+  const allCourses = getAllCourses();
+  const course = allCourses.find((c) => c.id === key);
+  if (!course) {
+    throw new Error('Curso não encontrado.');
+  }
+
+  const novas: DisciplinaEstagio[] = temEstagio
+    ? disciplinas.map((d) => ({
+        id: newId(),
+        curso_id: key,
+        modulo: d.modulo,
+        nome: d.nome.trim(),
+        carga_horaria: d.carga_horaria,
+      }))
+    : [];
+  saveAllDisciplinasEstagio([
+    ...getAllDisciplinasEstagio().filter((d) => d.curso_id !== key),
+    ...novas,
+  ]);
+
+  const permitidos = new Set(modulosComEstagio(novas));
+  const updatedRegistros = getAllRegistros().filter(
+    (r) =>
+      !(
+        normalizeCourseKey(r.nome_curso, r.grau) === key &&
+        r.setor === 'Estágio' &&
+        !permitidos.has(r.modulo)
+      )
+  );
+  saveAllRegistros(updatedRegistros);
+
+  const { curso: cursoRecalculado } = recalcularCurso(
+    { ...course, tem_estagio: temEstagio },
+    updatedRegistros.filter((r) => normalizeCourseKey(r.nome_curso, r.grau) === key),
+    novas
+  );
+  saveAllCourses(allCourses.map((c) => (c.id === key ? cursoRecalculado : c)));
+
+  saveEstagioToCloud(key, temEstagio, novas);
+
+  return cursoRecalculado;
+}
+
+/**
+ * Retorna o próximo módulo pendente. No setor Estágio, só os módulos com disciplina
+ * de estágio contam (os outros não são editáveis).
  */
 export function getNextPendingModule(
   nome_curso: string,
@@ -380,12 +499,17 @@ export function getNextPendingModule(
   const registros = getRegistrosForCourse(nome_curso, grau).filter(
     (r) => r.setor === setor
   );
-  for (let s = 1; s <= totalModulos; s++) {
+  const curso = findCourseByKey(nome_curso, grau);
+  const candidatos =
+    setor === 'Estágio' && curso
+      ? getModulosEstagio(curso)
+      : Array.from({ length: totalModulos }, (_, i) => i + 1);
+  for (const s of candidatos) {
     const hasProf = registros.some((r) => r.modulo === s && r.cargo === 'Professor');
     const hasMed = registros.some((r) => r.modulo === s && r.cargo === 'Mediador');
     if (!hasProf || !hasMed) {
       return s;
     }
   }
-  return 1;
+  return candidatos[0] ?? 1;
 }

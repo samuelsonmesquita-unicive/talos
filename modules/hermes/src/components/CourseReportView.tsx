@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { CursoMestre } from '../types';
 import {
   getAllCourses,
+  getDisciplinasEstagio,
   getRegistrosForCourse,
 } from '../services/courseStore';
 import { formatCurrency } from '../utils/salary';
-import { agregarModulosSetor } from '../utils/courseCalculations';
+import { agregarModulosSetor, totaisEstagio } from '../utils/courseCalculations';
 import {
   AlertTriangle,
   Printer,
@@ -64,11 +65,21 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
     activeCourse.quantidade_modulos,
     registros
   );
+  // Estágio: só os módulos com disciplina de estágio informada pelo Pedagógico contam
+  const disciplinasEstagio = getDisciplinasEstagio(activeCourse.nome_curso, activeCourse.grau);
+  const estagio = totaisEstagio(disciplinasEstagio);
   const estData = agregarModulosSetor(
     'Estágio',
     activeCourse.quantidade_modulos,
-    registros
+    registros,
+    new Set(activeCourse.tem_estagio ? estagio.modulos : [])
   );
+  const rotuloEstagio =
+    activeCourse.tem_estagio === false
+      ? 'sem estágio'
+      : activeCourse.tem_estagio == null
+      ? 'aguarda Pedagógico'
+      : activeCourse.status_estagio;
 
   // Totais de docentes e mediadores alocados por setor
   const totalProfessoresPed = pedData.modulos.reduce(
@@ -223,7 +234,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                 Status do Setor de Estágio:
               </span>
               <span className="text-sm font-bold text-slate-900 uppercase">
-                {activeCourse.status_estagio}
+                {rotuloEstagio}
               </span>
               <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600">
                 <span>Professores: <strong>{totalProfessoresEst}</strong></span>
@@ -238,7 +249,9 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                   : 'bg-amber-100 text-amber-900'
               }`}
             >
-              {estData.modulos_salvos} / {activeCourse.quantidade_modulos} módulos
+              {activeCourse.tem_estagio
+                ? `${estData.modulos_salvos} / ${estagio.modulos.length} módulos com estágio`
+                : 'sem módulos de estágio'}
             </span>
           </div>
         </div>
@@ -364,8 +377,46 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                 Setor de Estágio
               </h3>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
-                {activeCourse.status_estagio}
+                {rotuloEstagio}
               </span>
+            </div>
+
+            {/* Disciplinas de estágio informadas pelo Pedagógico */}
+            <div className="px-4 pt-4">
+              {activeCourse.tem_estagio ? (
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 bg-slate-50/70">
+                    <tr>
+                      <th className="py-1.5 px-2">Módulo</th>
+                      <th className="py-1.5 px-2">Disciplina de estágio</th>
+                      <th className="py-1.5 px-2 text-right">Carga horária</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {disciplinasEstagio.map((d) => (
+                      <tr key={d.id}>
+                        <td className="py-1.5 px-2 font-semibold text-slate-900">{d.modulo}º Módulo</td>
+                        <td className="py-1.5 px-2 text-slate-700">{d.nome}</td>
+                        <td className="py-1.5 px-2 text-right tabular text-slate-900">{d.carga_horaria} h</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t border-slate-200 bg-slate-50/50 font-semibold text-slate-700">
+                    <tr>
+                      <td className="py-2 px-2 text-slate-500" colSpan={2}>
+                        Carga horária de estágio do curso ({estagio.modulos.length} módulo(s))
+                      </td>
+                      <td className="py-2 px-2 text-right font-bold tabular">{estagio.totalCh} h</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                <p className="text-xs text-slate-500 italic">
+                  {activeCourse.tem_estagio === false
+                    ? 'Curso sem carga horária de estágio: não há custo de estágio.'
+                    : 'O Pedagógico ainda não informou as disciplinas de estágio deste curso.'}
+                </p>
+              )}
             </div>
 
             <div className="p-4 overflow-x-auto">
@@ -384,7 +435,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {estData.modulos.map((s) => {
+                  {estData.modulos.filter((s) => !s.sem_estagio).map((s) => {
                     const profQtd = s.registro_professor?.quantidade ?? 0;
                     const profCh = s.registro_professor?.carga_horaria;
                     const medQtd = s.registro_mediador?.quantidade ?? 0;

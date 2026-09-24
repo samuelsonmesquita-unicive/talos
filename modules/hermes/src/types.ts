@@ -30,6 +30,8 @@ export interface ModuloAgregado {
   professor_salvo: boolean;
   mediador_salvo: boolean;
   concluido: boolean;
+  // Setor Estágio: módulo sem disciplina de estágio (não entra no status nem no custo)
+  sem_estagio?: boolean;
   // Detalhes dos registros existentes neste módulo
   registro_professor?: RegistroItem;
   registro_mediador?: RegistroItem;
@@ -60,8 +62,20 @@ export interface CursoMestre {
   custo_total_curso: number;
   custo_mensal_medio_curso: number;
   dados_parciais: boolean;
+  // Informado pelo Pedagógico na etapa de estágio: null = ainda não informado,
+  // false = curso sem estágio, true = há disciplinas de estágio.
+  tem_estagio: boolean | null;
   criado_em: string;
   atualizado_em: string;
+}
+
+/** Disciplina de estágio da matriz (informada pelo Pedagógico). Libera o módulo para o setor Estágio. */
+export interface DisciplinaEstagio {
+  id: string;
+  curso_id: string;
+  modulo: number;
+  nome: string;
+  carga_horaria: number; // horas
 }
 
 export interface CargoSalaryConfig {

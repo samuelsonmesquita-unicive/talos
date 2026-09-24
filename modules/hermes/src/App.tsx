@@ -10,10 +10,16 @@ import { CourseReportView } from './components/CourseReportView';
 import { GeneralReportDashboard } from './components/GeneralReportDashboard';
 import { PlutosEmbedPanel } from './components/PlutosEmbedPanel';
 import { RelatorioPreviewModal } from './components/RelatorioPreviewModal';
-import { initializeCloudDatabase, saveAllCourses, saveAllRegistros } from './services/courseStore';
+import {
+  initializeCloudDatabase,
+  saveAllCourses,
+  saveAllDisciplinasEstagio,
+  saveAllRegistros,
+} from './services/courseStore';
 import {
   subscribeToCourses,
   subscribeToRegistros,
+  subscribeToDisciplinasEstagio,
   setCloudErrorHandler,
   setCostAccess,
 } from './services/cloudSync';
@@ -31,6 +37,7 @@ export default function App() {
     curso: CursoMestre;
     setor: Setor;
     isRetomada: boolean;
+    abrirEtapaEstagio?: boolean;
   } | null>(null);
 
   // Curso selecionado para inspeção em relatórios ou consulta
@@ -140,11 +147,18 @@ export default function App() {
       if (isMounted) setCloudStatus('conectado');
     });
 
+    // Subscrição em tempo real às disciplinas de estágio (informadas pelo Pedagógico)
+    const unsubDisciplinas = subscribeToDisciplinasEstagio((cloudDisc) => {
+      saveAllDisciplinasEstagio(cloudDisc);
+      setRefreshKey((k) => k + 1);
+    });
+
     return () => {
       isMounted = false;
       setCloudErrorHandler(null);
       unsubCourses();
       unsubRegistros();
+      unsubDisciplinas();
     };
   }, [isAdmin]);
 
@@ -152,12 +166,14 @@ export default function App() {
   const handleStartRegistration = (
     curso: CursoMestre,
     setorAlvo: Setor,
-    retomada: boolean
+    retomada: boolean,
+    abrirEtapaEstagio = false
   ) => {
     setActiveRegistration({
       curso,
       setor: setorAlvo,
       isRetomada: retomada,
+      abrirEtapaEstagio,
     });
     setTargetCourse(curso);
     setActiveTab('cadastro');
@@ -223,12 +239,13 @@ export default function App() {
               <DemandRegistrationFlow
                 // Sem refreshKey: cada salvamento dispara um snapshot da nuvem, e remontar o
                 // fluxo perderia o estado (popup de conclusão e módulo atual).
-                key={`${activeRegistration.curso.id}_${activeRegistration.setor}`}
+                key={`${activeRegistration.curso.id}_${activeRegistration.setor}_${activeRegistration.abrirEtapaEstagio ? 'estagio' : 'modulos'}`}
                 curso={activeRegistration.curso}
                 cursoInicial={activeRegistration.curso}
                 initialSetor={activeRegistration.setor}
                 setorInicial={activeRegistration.setor}
                 isRetomada={activeRegistration.isRetomada}
+                abrirEtapaEstagio={activeRegistration.abrirEtapaEstagio}
                 onConclude={handleConcludeSector}
                 onConcludeSector={handleConcludeSector}
                 onCancel={handleCancelRegistration}

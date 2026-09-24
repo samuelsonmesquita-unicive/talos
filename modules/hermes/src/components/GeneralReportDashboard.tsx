@@ -600,7 +600,7 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
                               : 'bg-amber-100 text-amber-900'
                           }`}
                         >
-                          {c.status_estagio}
+                          {c.tem_estagio === false ? 'sem estágio' : c.status_estagio}
                         </span>
                       </td>
 

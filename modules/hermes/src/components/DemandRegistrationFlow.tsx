@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CursoMestre, Setor, CargaHoraria, RegistroItem } from '../types';
+import { CursoMestre, Setor, CargaHoraria, RegistroItem, DisciplinaEstagio } from '../types';
 import {
   saveOrUpdateRegistro,
   getRegistrosForCourse,
   getNextPendingModule,
+  findCourseByKey,
+  getDisciplinasEstagio,
 } from '../services/courseStore';
 import { formatCurrency } from '../utils/salary';
-import { MESES_POR_MODULO, MODULOS_POR_ANO } from '../utils/courseCalculations';
+import { MESES_POR_MODULO, MODULOS_POR_ANO, totaisEstagio } from '../utils/courseCalculations';
+import { EstagioDisciplinasStep } from './EstagioDisciplinasStep';
+import { SemEstagioAviso } from './SemEstagioAviso';
 import {
+  Briefcase,
+  Pencil,
   CheckCircle2,
   ChevronRight,
   Save,
@@ -34,6 +40,8 @@ interface DemandRegistrationFlowProps {
   initialSetor?: Setor;
   setorInicial?: Setor;
   isRetomada?: boolean;
+  // Pedagógico: abre direto na etapa "Disciplinas de estágio" (ex.: "Editar disciplinas de estágio")
+  abrirEtapaEstagio?: boolean;
   // Supports onConcludeSector and onConclude with optional toast message.
   // cursoCompleto = true quando ESTE ato de conclusão deixou o curso 100% completo
   // (Pedagógico + Estágio). setorConcluido = qual setor acabou de ser concluído nesta
@@ -157,6 +165,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   curso,
   initialSetor = 'Pedagógico',
   setorInicial,
+  abrirEtapaEstagio = false,
   onConcludeSector,
   onConclude,
   onCancel,
@@ -164,14 +173,21 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   onGoToReport,
 }) => {
   const total = curso.quantidade_modulos;
-  const resolvedInitialSetor: Setor = setorInicial || initialSetor;
+  // O fluxo fica preso ao setor escolhido na entrada (cada setor preenche só o seu)
+  const currentSetor: Setor = setorInicial || initialSetor;
 
   const handleConclude = (toastMsg?: string, cursoCompleto?: boolean, setorConcluido?: Setor) => {
     if (onConcludeSector) onConcludeSector(toastMsg, cursoCompleto, setorConcluido);
     else if (onConclude) onConclude(toastMsg, cursoCompleto, setorConcluido);
   };
 
-  const [currentSetor, setCurrentSetor] = useState<Setor>(resolvedInitialSetor);
+  // Versão mais recente do curso (tem_estagio pode ter mudado desde que o fluxo foi aberto)
+  const [cursoAtual, setCursoAtual] = useState<CursoMestre>(
+    () => findCourseByKey(curso.nome_curso, curso.grau) ?? curso
+  );
+  const [disciplinas, setDisciplinas] = useState<DisciplinaEstagio[]>(() =>
+    getDisciplinasEstagio(curso.nome_curso, curso.grau)
+  );
 
   // 'setor' = setor recém-concluído; 'curso' = ambos os setores concluídos
   const [showSetorCompletedPopup, setShowSetorCompletedPopup] = useState<{
@@ -185,7 +201,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
 
   const [currentModulo, setCurrentModulo] = useState<number>(
     () =>
-      getNextPendingModule(curso.nome_curso, curso.grau, resolvedInitialSetor, total) || 1
+      getNextPendingModule(curso.nome_curso, curso.grau, currentSetor, total) || 1
   );
 
   const [qtdProf, setQtdProf] = useState('');
@@ -199,8 +215,6 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   const formRef = useRef<HTMLDivElement>(null);
   const profInputRef = useRef<HTMLInputElement>(null);
   const medInputRef = useRef<HTMLInputElement>(null);
-
-  const otherSetor: Setor = currentSetor === 'Pedagógico' ? 'Estágio' : 'Pedagógico';
 
   const focusProfessor = () => {
     setTimeout(() => {
@@ -239,12 +253,34 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   };
 
   const modulos = Array.from({ length: total }, (_, i) => i + 1);
-  const concluidos = new Set(modulos.filter((m) => isModuloConcluido(m)));
-  const primeiroPendente = modulos.find((m) => !concluidos.has(m)) ?? total;
-  const setorConcluido = concluidos.size >= total;
+
+  // Estágio: só os módulos com disciplina de estágio (informadas pelo Pedagógico) são editáveis
+  const estagio = totaisEstagio(disciplinas);
+  const modulosDoSetor = (setor: Setor): number[] =>
+    setor === 'Estágio' ? (cursoAtual.tem_estagio ? estagio.modulos : []) : modulos;
+  const modulosSetor = modulosDoSetor(currentSetor);
+  const temModulo = (mod: number) => modulosSetor.includes(mod);
+
+  const concluidos = new Set(modulosSetor.filter((m) => isModuloConcluido(m)));
+  const primeiroPendente =
+    modulosSetor.find((m) => !concluidos.has(m)) ?? modulosSetor[modulosSetor.length - 1] ?? 1;
+  const setorConcluido = modulosSetor.length > 0 && concluidos.size >= modulosSetor.length;
+  const proximoModulo = (mod: number) => modulosSetor.find((m) => m > mod);
+  const moduloAnterior = (mod: number) => [...modulosSetor].reverse().find((m) => m < mod);
+
+  // Pedagógico: todos os módulos salvos; o setor só conclui depois da etapa de estágio
+  const pedagogicoModulosOk = (lista = registros) =>
+    modulos.every((m) => isModuloConcluido(m, 'Pedagógico', lista));
+
+  const [etapaEstagio, setEtapaEstagio] = useState<boolean>(
+    () =>
+      currentSetor === 'Pedagógico' &&
+      (abrirEtapaEstagio || (cursoAtual.tem_estagio == null && pedagogicoModulosOk()))
+  );
 
   // Só o primeiro módulo pendente é editável; com o setor completo, todos podem ser revisados
-  const isModuloTravado = (mod: number) => (setorConcluido ? false : mod !== primeiroPendente);
+  const isModuloTravado = (mod: number) =>
+    !temModulo(mod) || (setorConcluido ? false : mod !== primeiroPendente);
 
   /* ── Validação ── */
   const numProf = Number(qtdProf);
@@ -268,10 +304,37 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     saveOrUpdateRegistro(curso.nome_curso, curso.grau, currentSetor, mod, 'Mediador', numMed, chMed || '10h');
   };
 
-  const finalizarSetor = () => {
+  // Estágio concluído: o curso fica completo se o Pedagógico também estiver (módulos + etapa de estágio)
+  const finalizarEstagio = () => {
     const atuais = getRegistrosForCourse(curso.nome_curso, curso.grau);
-    const outroCompleto = modulos.every((m) => isModuloConcluido(m, otherSetor, atuais));
-    setShowSetorCompletedPopup({ tipo: outroCompleto ? 'curso' : 'setor', setor: currentSetor });
+    const pedCompleto = pedagogicoModulosOk(atuais) && cursoAtual.tem_estagio != null;
+    setShowSetorCompletedPopup({ tipo: pedCompleto ? 'curso' : 'setor', setor: 'Estágio' });
+  };
+
+  // Pedagógico: depois do último módulo vem a etapa "Disciplinas de estágio"
+  const concluirModulosSetor = () => {
+    if (currentSetor === 'Pedagógico') {
+      setNotice(null);
+      setEtapaEstagio(true);
+    } else {
+      finalizarEstagio();
+    }
+  };
+
+  const handleEstagioSalvo = (cursoSalvo: CursoMestre, novas: DisciplinaEstagio[]) => {
+    const primeiraVez = cursoAtual.tem_estagio == null;
+    setCursoAtual(cursoSalvo);
+    setDisciplinas(novas);
+    setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
+    setEtapaEstagio(false);
+    if (primeiraVez) {
+      setShowSetorCompletedPopup({
+        tipo: cursoSalvo.status_estagio === 'completo' ? 'curso' : 'setor',
+        setor: 'Pedagógico',
+      });
+    } else {
+      setNotice('Disciplinas de estágio atualizadas.');
+    }
   };
 
   const handleSalvar = () => {
@@ -291,19 +354,22 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
       return;
     }
 
-    if (currentModulo < total) {
-      const next = currentModulo + 1;
+    const next = proximoModulo(currentModulo);
+    if (next !== undefined) {
       setNotice(`Módulo ${currentModulo} salvo.`);
       setCurrentModulo(next);
     } else {
-      finalizarSetor();
+      concluirModulosSetor();
     }
   };
 
   /* ── Atalhos de produtividade ── */
+  const anterior = moduloAnterior(currentModulo);
+  const restantes = modulosSetor.filter((m) => m >= currentModulo);
+
   const copiarModuloAnterior = () => {
-    if (currentModulo <= 1) return;
-    const { prof, med } = registrosDoModulo(currentModulo - 1, currentSetor);
+    if (anterior === undefined) return;
+    const { prof, med } = registrosDoModulo(anterior, currentSetor);
     if (!prof || !med) return;
     setQtdProf(String(prof.quantidade));
     setChProf(prof.quantidade > 0 ? prof.carga_horaria : null);
@@ -318,34 +384,75 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
       setFormError(pendencia);
       return;
     }
-    const restantes = total - currentModulo + 1;
+    const lista = restantes.map((m) => `M${m}`).join(', ');
     if (
       !window.confirm(
-        `Aplicar estes valores aos ${restantes} módulo(s) restante(s) (${currentModulo}º ao ${total}º) do Setor ${currentSetor}? Você poderá ajustar depois em Consultar Registros.`
+        `Aplicar estes valores aos ${restantes.length} módulo(s) restante(s) (${lista}) do Setor ${currentSetor}? Você poderá ajustar depois em Consultar Registros.`
       )
     ) {
       return;
     }
-    for (let m = currentModulo; m <= total; m++) gravarModulo(m);
+    for (const m of restantes) gravarModulo(m);
     setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
-    finalizarSetor();
+    concluirModulosSetor();
   };
 
-  const podeCopiar = currentModulo > 1 && isModuloConcluido(currentModulo - 1) && !isModuloConcluido(currentModulo);
-  const podeAplicarRestantes = !setorConcluido && currentModulo < total;
+  const podeCopiar =
+    anterior !== undefined && isModuloConcluido(anterior) && !isModuloConcluido(currentModulo);
+  const podeAplicarRestantes = !setorConcluido && restantes.length > 1;
+  const proximo = proximoModulo(currentModulo);
 
   /* ── Resumo compacto por ano ── */
   const anos = Array.from({ length: Math.ceil(total / MODULOS_POR_ANO) }, (_, i) => i + 1);
   const totalSetor = registros
-    .filter((r) => r.setor === currentSetor)
+    .filter((r) => r.setor === currentSetor && temModulo(r.modulo))
     .reduce((s, r) => s + r.custo, 0);
-  const percentual = total > 0 ? Math.round((concluidos.size / total) * 100) : 0;
+  const percentual =
+    modulosSetor.length > 0 ? Math.round((concluidos.size / modulosSetor.length) * 100) : 0;
+  const disciplinasDoModulo = disciplinas.filter((d) => d.modulo === currentModulo);
 
-  const trocarSetor = (s: Setor) => {
-    setCurrentSetor(s);
-    setCurrentModulo(getNextPendingModule(curso.nome_curso, curso.grau, s, total) || 1);
-    setNotice(null);
+  // Resumo de cada setor nas abas (só informativo: o setor é escolhido na entrada)
+  const progressoSetor = (s: Setor): { texto: string; completo: boolean; parcial: boolean } => {
+    if (s === 'Estágio' && cursoAtual.tem_estagio === false) {
+      return { texto: 'sem estágio', completo: true, parcial: false };
+    }
+    if (s === 'Estágio' && cursoAtual.tem_estagio == null) {
+      return { texto: 'aguarda Pedagógico', completo: false, parcial: false };
+    }
+    const lista = modulosDoSetor(s);
+    const feitos = lista.filter((m) => isModuloConcluido(m, s)).length;
+    const completo =
+      feitos >= lista.length && (s === 'Estágio' || cursoAtual.tem_estagio != null);
+    const texto =
+      s === 'Pedagógico' && feitos >= lista.length && cursoAtual.tem_estagio == null
+        ? 'falta estágio'
+        : `${feitos}/${lista.length}`;
+    return { texto, completo, parcial: feitos > 0 };
   };
+
+  /* ── Estágio sem módulos liberados pelo Pedagógico ── */
+  if (currentSetor === 'Estágio' && !cursoAtual.tem_estagio) {
+    return (
+      <div className="max-w-5xl mx-auto py-5 px-4 sm:px-6 space-y-3">
+        <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+          <button
+            onClick={onCancel}
+            className="p-2 text-slate-500 hover:text-[#239371] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Voltar ao início"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="min-w-0">
+            <span className="text-xs font-semibold text-slate-500">
+              {curso.grau} &bull; {curso.duracao_curso} anos &bull; {total} módulos trimestrais
+            </span>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{curso.nome_curso}</h1>
+          </div>
+        </div>
+        <SemEstagioAviso pendentePedagogico={cursoAtual.tem_estagio == null} onVoltar={onCancel} />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-5 px-4 sm:px-6 space-y-3">
@@ -389,44 +496,32 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
         <div className="flex rounded-lg bg-slate-100 p-1 gap-1">
           {(['Pedagógico', 'Estágio'] as Setor[]).map((s) => {
             const isAtivo = currentSetor === s;
-            const feitos = modulos.filter((m) => isModuloConcluido(m, s)).length;
-            const bloqueado = !setorConcluido && !isAtivo;
+            const prog = progressoSetor(s);
             return (
-              <button
+              <div
                 key={s}
-                type="button"
                 id={`btn-setor-${s.toLowerCase()}`}
-                disabled={bloqueado}
-                title={
-                  bloqueado
-                    ? `Conclua todos os módulos do Setor ${currentSetor} primeiro.`
-                    : `Alternar para Setor ${s}`
-                }
-                onClick={() => {
-                  if (!bloqueado && !isAtivo) trocarSetor(s);
-                }}
-                className={`flex-1 py-2 px-3 rounded-md text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
-                  bloqueado
-                    ? 'text-slate-400 cursor-not-allowed opacity-60'
-                    : isAtivo
-                    ? 'bg-white text-[#239371] font-bold shadow-xs ring-1 ring-black/5 cursor-default'
-                    : 'text-slate-600 hover:bg-slate-200/60 cursor-pointer'
+                title={isAtivo ? `Você está preenchendo o Setor ${s}` : `Setor ${s} é preenchido pela própria equipe`}
+                className={`flex-1 py-2 px-3 rounded-md text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 ${
+                  isAtivo
+                    ? 'bg-white text-[#239371] font-bold shadow-xs ring-1 ring-black/5'
+                    : 'text-slate-400'
                 }`}
               >
-                {bloqueado && !isAtivo && <Lock className="w-3 h-3" />}
+                {!isAtivo && <Lock className="w-3 h-3" />}
                 <span>{s}</span>
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                    feitos >= total
+                    prog.completo
                       ? 'bg-emerald-100 text-[#117d5d]'
-                      : feitos > 0
+                      : prog.parcial
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {feitos}/{total}
+                  {prog.texto}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -437,9 +532,30 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
             <div className="h-full bg-[#239371] transition-all" style={{ width: `${percentual}%` }} />
           </div>
           <span className="text-[11px] font-bold text-slate-600 tabular whitespace-nowrap">
-            {concluidos.size}/{total} módulos &bull; {formatCurrency(totalSetor)}
+            {concluidos.size}/{modulosSetor.length} módulos
+            {currentSetor === 'Estágio' ? ' com estágio' : ''} &bull; {formatCurrency(totalSetor)}
           </span>
         </div>
+
+        {/* Estágio: carga horária informada pelo Pedagógico */}
+        {currentSetor === 'Estágio' && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="font-bold uppercase tracking-wide text-slate-500 mr-1">
+              Estágio por módulo:
+            </span>
+            {estagio.modulos.map((m) => (
+              <span
+                key={m}
+                className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 tabular"
+              >
+                M{m} &bull; {estagio.porModulo.get(m)!.ch} h
+              </span>
+            ))}
+            <span className="px-2 py-0.5 rounded-full bg-[#ebf7f2] border border-[#239371]/40 text-[#117d5d] font-bold tabular">
+              Total do curso &bull; {estagio.totalCh} h
+            </span>
+          </div>
+        )}
 
         {/* Mapa de módulos agrupado por ano */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
@@ -452,9 +568,11 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 </span>
                 <div className="flex-1 grid grid-cols-4 gap-1">
                   {doAno.map((mod) => {
-                    const ativo = mod === currentModulo;
+                    const semEstagio = !temModulo(mod);
+                    const ativo = mod === currentModulo && !etapaEstagio && !semEstagio;
                     const feito = concluidos.has(mod);
                     const travado = isModuloTravado(mod);
+                    const chEstagio = estagio.porModulo.get(mod)?.ch;
                     return (
                       <button
                         key={mod}
@@ -462,7 +580,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                         id={`btn-modulo-progressao-${mod}`}
                         disabled={travado || ativo}
                         title={
-                          ativo
+                          semEstagio
+                            ? `Módulo ${mod} sem estágio cadastrado pelo Pedagógico`
+                            : ativo
                             ? `Módulo ${mod} em edição`
                             : feito
                             ? `Módulo ${mod} concluído`
@@ -472,10 +592,13 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                         }
                         onClick={() => {
                           setCurrentModulo(mod);
+                          setEtapaEstagio(false);
                           setNotice(null);
                         }}
                         className={`h-7 rounded-md text-[11px] font-bold flex items-center justify-center gap-0.5 transition-all ${
-                          ativo
+                          semEstagio
+                            ? 'bg-white text-slate-300 border border-dashed border-slate-200 line-through cursor-not-allowed'
+                            : ativo
                             ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 cursor-default'
                             : feito
                             ? `bg-[#ebf7f2] text-[#117d5d] border border-[#239371]/40 ${
@@ -486,6 +609,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                       >
                         {feito && !ativo ? <CheckCircle2 className="w-3 h-3" /> : null}
                         M{mod}
+                        {currentSetor === 'Estágio' && chEstagio ? (
+                          <span className="font-medium opacity-80">&nbsp;&bull; {chEstagio}h</span>
+                        ) : null}
                       </button>
                     );
                   })}
@@ -496,7 +622,18 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
         </div>
       </div>
 
-      {/* Formulário do módulo ativo */}
+      {/* Pedagógico: etapa final "Disciplinas de estágio" */}
+      {etapaEstagio ? (
+        <EstagioDisciplinasStep
+          curso={cursoAtual}
+          disciplinas={disciplinas}
+          registros={registros}
+          edicao={cursoAtual.tem_estagio != null}
+          onSaved={handleEstagioSalvo}
+          onCancel={() => setEtapaEstagio(false)}
+        />
+      ) : (
+      /* Formulário do módulo ativo */
       <div
         ref={formRef}
         id="formulario-modulo-ativo"
@@ -517,19 +654,56 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
             </div>
           </div>
 
-          {podeCopiar && (
-            <button
-              type="button"
-              id="btn-copiar-modulo-anterior"
-              onClick={copiarModuloAnterior}
-              className="btn-unicive-outline text-[11px] py-1.5 px-2.5"
-              title="Copiar quantidades e cargas horárias do módulo anterior"
-            >
-              <Copy className="w-3 h-3 mr-1.5" />
-              Repetir módulo {currentModulo - 1}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {currentSetor === 'Pedagógico' && setorConcluido && (
+              <button
+                type="button"
+                id="btn-editar-disciplinas-estagio"
+                onClick={() => {
+                  setNotice(null);
+                  setEtapaEstagio(true);
+                }}
+                className={`text-[11px] py-1.5 px-2.5 ${
+                  cursoAtual.tem_estagio == null ? 'btn-unicive-orange' : 'btn-unicive-outline'
+                }`}
+              >
+                <Pencil className="w-3 h-3 mr-1.5" />
+                {cursoAtual.tem_estagio == null
+                  ? 'Informar disciplinas de estágio (pendente)'
+                  : 'Editar disciplinas de estágio'}
+              </button>
+            )}
+            {podeCopiar && (
+              <button
+                type="button"
+                id="btn-copiar-modulo-anterior"
+                onClick={copiarModuloAnterior}
+                className="btn-unicive-outline text-[11px] py-1.5 px-2.5"
+                title="Copiar quantidades e cargas horárias do módulo anterior"
+              >
+                <Copy className="w-3 h-3 mr-1.5" />
+                Repetir módulo {anterior}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Estágio: disciplinas de estágio deste módulo (informadas pelo Pedagógico) */}
+        {currentSetor === 'Estágio' && disciplinasDoModulo.length > 0 && (
+          <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800">
+              <Briefcase className="w-3.5 h-3.5 text-[#239371]" />
+              Estágio neste módulo &bull; {estagio.porModulo.get(currentModulo)?.ch ?? 0} h
+            </div>
+            <ul className="flex flex-wrap gap-x-4 gap-y-0.5">
+              {disciplinasDoModulo.map((d) => (
+                <li key={d.id}>
+                  {d.nome} <span className="text-slate-500 tabular">({d.carga_horaria} h)</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {notice && (
           <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-[#117d5d] text-xs font-semibold rounded-lg flex items-center gap-2">
@@ -627,7 +801,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   }`}
                 >
                   <ListChecks className="w-3.5 h-3.5" />
-                  Aplicar aos {total - currentModulo + 1} restantes
+                  Aplicar aos {restantes.length} restantes
                 </button>
               )}
               <button
@@ -644,8 +818,10 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 <span>
                   {setorConcluido
                     ? `Atualizar Módulo ${currentModulo}`
-                    : currentModulo < total
-                    ? `Salvar e ir p/ Módulo ${currentModulo + 1}`
+                    : proximo !== undefined
+                    ? `Salvar e ir p/ Módulo ${proximo}`
+                    : currentSetor === 'Pedagógico'
+                    ? 'Salvar e informar estágio'
                     : 'Salvar e Concluir Setor'}
                 </span>
                 <ChevronRight className="w-4 h-4" />
@@ -654,6 +830,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
           </div>
         </form>
       </div>
+      )}
 
       {/* Módulos já preenchidos: uma linha por módulo */}
       {concluidos.size > 0 && (
@@ -666,6 +843,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
               <thead className="sticky top-0 bg-white text-[10px] uppercase text-slate-500 border-b border-slate-100">
                 <tr>
                   <th className="py-1.5 px-3 text-left">Módulo</th>
+                  {currentSetor === 'Estágio' && <th className="py-1.5 px-2 text-left">CH estágio</th>}
                   <th className="py-1.5 px-2 text-left">Professor</th>
                   <th className="py-1.5 px-2 text-left">Mediador</th>
                   <th className="py-1.5 px-3 text-right">Custo</th>
@@ -681,6 +859,11 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                     return (
                       <tr key={m} className={m === currentModulo ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
                         <td className="py-1 px-3 font-bold text-slate-800">M{m}</td>
+                        {currentSetor === 'Estágio' && (
+                          <td className="py-1 px-2 tabular text-slate-700">
+                            {estagio.porModulo.get(m)?.ch ?? 0} h
+                          </td>
+                        )}
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(prof)}</td>
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(med)}</td>
                         <td className="py-1 px-3 text-right font-bold tabular text-slate-900">
@@ -712,7 +895,8 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   <h2 className="text-2xl font-bold text-slate-900">Curso concluído com sucesso!</h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
                     Os setores <strong>Pedagógico</strong> e <strong>Estágio</strong> de{' '}
-                    <strong>{curso.nome_curso}</strong> foram preenchidos em todos os {total} módulos.
+                    <strong>{curso.nome_curso}</strong> estão completos.
+                    {cursoAtual.tem_estagio === false && ' O curso não tem estágio, então não há custo de estágio.'}
                   </p>
                 </>
               ) : (
@@ -721,61 +905,47 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                     Setor {showSetorCompletedPopup.setor} concluído!
                   </h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Todos os <strong>{total} módulos</strong> do setor{' '}
-                    <strong>{showSetorCompletedPopup.setor}</strong> foram preenchidos.
-                    <br />
-                    <br />
-                    O setor <strong>{otherSetor}</strong> ainda não foi preenchido.{' '}
-                    <strong>Deseja preenchê-lo agora?</strong>
+                    {showSetorCompletedPopup.setor === 'Pedagógico' ? (
+                      <>
+                        Todos os <strong>{total} módulos</strong> e as disciplinas de estágio foram
+                        informados. O setor <strong>Estágio</strong> poderá preencher os{' '}
+                        <strong>{estagio.modulos.length} módulo(s) com estágio</strong> (
+                        {estagio.totalCh} h no curso).
+                      </>
+                    ) : (
+                      <>
+                        Todos os <strong>{modulosSetor.length} módulo(s) com estágio</strong> foram
+                        preenchidos. O setor <strong>Pedagógico</strong> ainda tem pendências.
+                      </>
+                    )}
                   </p>
                 </>
               )}
             </div>
 
-            {showSetorCompletedPopup.tipo === 'curso' ? (
-              <button
-                type="button"
-                id="btn-concluir-curso"
-                onClick={() => {
-                  const setor = showSetorCompletedPopup.setor;
-                  setShowSetorCompletedPopup(null);
-                  handleConclude(`Curso ${curso.nome_curso} concluído com sucesso`, true, setor);
-                }}
-                className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4 shrink-0" />
-                <span>Continuar para Quantidade de Disciplinas</span>
-              </button>
-            ) : (
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  id="btn-preencher-outro-setor-nao"
-                  onClick={() => {
-                    const setor = showSetorCompletedPopup.setor;
-                    setShowSetorCompletedPopup(null);
-                    handleConclude(`Setor ${setor} preenchido com sucesso`, false, setor);
-                  }}
-                  className="btn-unicive-outline flex-1 py-3 px-4 text-sm font-bold"
-                >
-                  {showSetorCompletedPopup.setor === 'Pedagógico'
-                    ? 'Não, registrar disciplinas para gravação'
-                    : 'Não, voltar ao início'}
-                </button>
-                <button
-                  type="button"
-                  id="btn-preencher-outro-setor-sim"
-                  onClick={() => {
-                    setShowSetorCompletedPopup(null);
-                    trocarSetor(otherSetor);
-                  }}
-                  className="btn-unicive-primary flex-1 py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Sim, preencher {otherSetor}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              id="btn-concluir-setor"
+              onClick={() => {
+                const { tipo, setor } = showSetorCompletedPopup;
+                setShowSetorCompletedPopup(null);
+                handleConclude(
+                  tipo === 'curso'
+                    ? `Curso ${curso.nome_curso} concluído com sucesso`
+                    : `Setor ${setor} preenchido com sucesso`,
+                  tipo === 'curso',
+                  setor
+                );
+              }}
+              className="btn-unicive-primary w-full py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4 shrink-0" />
+              <span>
+                {showSetorCompletedPopup.setor === 'Pedagógico'
+                  ? 'Continuar para Quantidade de Disciplinas'
+                  : 'Voltar ao início'}
+              </span>
+            </button>
           </div>
         </div>
       )}
