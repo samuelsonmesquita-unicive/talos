@@ -15,9 +15,13 @@ import {
   subscribeToCourses,
   subscribeToRegistros,
   setCloudErrorHandler,
+  setCostAccess,
 } from './services/cloudSync';
+import { useAuth } from './hooks/useAuth';
 
 export default function App() {
+  const { isAdmin } = useAuth();
+
   const [activeTab, setActiveTab] = useState<
     'cadastro' | 'consulta' | 'relatorio-curso' | 'relatorio-geral'
   >('cadastro');
@@ -97,6 +101,9 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
+    // Custos e salários só chegam ao admin (o banco também recusa os demais)
+    setCostAccess(isAdmin);
+
     // Falhas de escrita (ex.: sem permissão): avisa o usuário e recarrega os dados oficiais
     setCloudErrorHandler((message) => {
       showQuickToast(message, 'error');
@@ -139,7 +146,7 @@ export default function App() {
       unsubCourses();
       unsubRegistros();
     };
-  }, []);
+  }, [isAdmin]);
 
   // Iniciar cadastro ou retomada (Seção 7)
   const handleStartRegistration = (

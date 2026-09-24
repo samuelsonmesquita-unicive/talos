@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { CargaHoraria, Cargo, SalaryConfig } from '../types';
-import { formatCurrency, aplicarEncargosAoSalario } from '../utils/salary';
 import { saveSalaryConfigToCloud } from '../services/cloudSync';
 import {
   X,
@@ -181,19 +180,12 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
                   </div>
 
                   {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
-                    const num = parseFloat(campos.Professor[ch]);
-                    const valido = !isNaN(num) && num > 0;
                     return (
                       <div key={`prof-${ch}`}>
                         <div className="flex justify-between items-center mb-1">
                           <label className="text-xs font-bold text-slate-700">
                             Carga Horária {ch} (Base, novo valor)
                           </label>
-                          {valido && (
-                            <span className="text-[10px] text-[#117d5d] font-bold tabular">
-                              c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(num))}
-                            </span>
-                          )}
                         </div>
                         <input
                           type="number"
@@ -222,19 +214,12 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
                   </div>
 
                   {(['10h', '20h', '40h'] as CargaHoraria[]).map((ch) => {
-                    const num = parseFloat(campos.Mediador[ch]);
-                    const valido = !isNaN(num) && num > 0;
                     return (
                       <div key={`med-${ch}`}>
                         <div className="flex justify-between items-center mb-1">
                           <label className="text-xs font-bold text-slate-700">
                             Carga Horária {ch} (Base, novo valor)
                           </label>
-                          {valido && (
-                            <span className="text-[10px] text-[#117d5d] font-bold tabular">
-                              c/ encargos (+***%): {formatCurrency(aplicarEncargosAoSalario(num))}
-                            </span>
-                          )}
                         </div>
                         <input
                           type="number"

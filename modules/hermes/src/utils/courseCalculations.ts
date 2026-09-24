@@ -1,6 +1,4 @@
 import {
-  CargaHoraria,
-  Cargo,
   CursoMestre,
   Grau,
   RegistroItem,
@@ -10,7 +8,6 @@ import {
   SetorAgregado,
   StatusGeral,
 } from '../types';
-import { buscar_salario } from './salary';
 
 /** Cada módulo dura 3 meses (trimestral) */
 export const MESES_POR_MODULO = 3;
@@ -26,17 +23,17 @@ export function normalizeCourseKey(nome_curso: string, grau: Grau): string {
 }
 
 /**
- * Calcula o custo individual de um registro (seção 6.2 - passo 1)
- * custo = quantidade * salario * 3 (módulo trimestral)
+ * Salário e custo de um registro são confidenciais: só o banco os calcula e
+ * só o admin os recebe. Localmente ficam como NaN ("—" na tela) até o tempo
+ * real trazer os valores oficiais — ou para sempre, para quem não é admin.
  */
-export function calcularCustoRegistro(
-  quantidade: number,
-  carga_horaria: CargaHoraria,
-  cargo: Cargo = 'Professor'
-): { salario: number; custo: number } {
-  const salario = buscar_salario(carga_horaria, cargo);
-  const custo = quantidade * salario * MESES_POR_MODULO;
-  return { salario, custo };
+export function calcularCustoRegistro(): { salario: number; custo: number } {
+  return { salario: NaN, custo: NaN };
+}
+
+/** JSON não guarda NaN (vira null): ao ler o cache, custo nulo volta a ser NaN. */
+function custoOuNaN(value: unknown): number {
+  return typeof value === 'number' ? value : NaN;
 }
 
 /**
@@ -206,7 +203,11 @@ export function isRegistroLegado(r: LegacyRegistro): boolean {
 }
 
 export function migrarRegistros(registros: LegacyRegistro[]): RegistroItem[] {
-  const nativos = registros.filter((r) => !isRegistroLegado(r)) as RegistroItem[];
+  const nativos = (registros.filter((r) => !isRegistroLegado(r)) as RegistroItem[]).map((r) => ({
+    ...r,
+    salario: custoOuNaN(r.salario),
+    custo: custoOuNaN(r.custo),
+  }));
   const ids = new Set(nativos.map((r) => r.id));
   const resultado = [...nativos];
   let maxIndice = nativos.reduce((m, r) => Math.max(m, r.indice || 0), 0);
@@ -220,7 +221,7 @@ export function migrarRegistros(registros: LegacyRegistro[]): RegistroItem[] {
         const id = `${r.id}_m${parte}`;
         if (ids.has(id)) return;
         ids.add(id);
-        const { custo } = calcularCustoRegistro(r.quantidade!, r.carga_horaria!, r.cargo!);
+        const { custo } = calcularCustoRegistro();
         resultado.push({
           ...(resto as RegistroItem),
           id,
@@ -235,7 +236,16 @@ export function migrarRegistros(registros: LegacyRegistro[]): RegistroItem[] {
 }
 
 export function migrarCursos(cursos: LegacyCurso[]): CursoMestre[] {
-  return cursos.map((c) => {
+  return cursos.map((legado) => {
+    const c = {
+      ...legado,
+      custo_total_pedagogico: custoOuNaN(legado.custo_total_pedagogico),
+      custo_mensal_medio_pedagogico: custoOuNaN(legado.custo_mensal_medio_pedagogico),
+      custo_total_estagio: custoOuNaN(legado.custo_total_estagio),
+      custo_mensal_medio_estagio: custoOuNaN(legado.custo_mensal_medio_estagio),
+      custo_total_curso: custoOuNaN(legado.custo_total_curso),
+      custo_mensal_medio_curso: custoOuNaN(legado.custo_mensal_medio_curso),
+    };
     if (c.quantidade_modulos !== undefined) return c as CursoMestre;
     const { quantidade_semestres, ...resto } = c;
     const semestres = quantidade_semestres ?? Math.round((c.duracao_curso || 0) * 2);

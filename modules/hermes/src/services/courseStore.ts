@@ -207,7 +207,7 @@ export function saveOrUpdateRegistro(
     throw new Error('Curso não encontrado para salvar registro.');
   }
 
-  const { salario, custo } = calcularCustoRegistro(quantidade, carga_horaria, cargo);
+  const { salario, custo } = calcularCustoRegistro();
   const existingIndex = allRegistros.findIndex(
     (r) =>
       normalizeCourseKey(r.nome_curso, r.grau) === key &&

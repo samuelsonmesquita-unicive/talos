@@ -102,9 +102,11 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
   });
 
   const sortedCourses = [...filteredCourses].sort((a, b) => {
-    if (sortBy === 'custo_desc') return b.custo_total_curso - a.custo_total_curso;
-    if (sortBy === 'custo_asc') return a.custo_total_curso - b.custo_total_curso;
-    return a.nome_curso.localeCompare(b.nome_curso);
+    // Sem acesso aos custos (NaN), a diferença é NaN e cai na ordem por nome
+    const porNome = a.nome_curso.localeCompare(b.nome_curso);
+    if (sortBy === 'custo_desc') return (b.custo_total_curso - a.custo_total_curso) || porNome;
+    if (sortBy === 'custo_asc') return (a.custo_total_curso - b.custo_total_curso) || porNome;
+    return porNome;
   });
 
   const cursosCompletos = courses.filter((c) => c.status_geral === 'completo');
@@ -162,11 +164,11 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
 
   const selectedCoursesList = courses.filter((c) => selectedCourseIds.has(c.id));
   const somatorioCustoMensalSelecionados = selectedCoursesList.reduce(
-    (acc, curr) => acc + (curr.custo_mensal_medio_curso || 0),
+    (acc, curr) => acc + (curr.custo_mensal_medio_curso ?? 0),
     0
   );
   const somatorioCustoTotalSelecionados = selectedCoursesList.reduce(
-    (acc, curr) => acc + (curr.custo_total_curso || 0),
+    (acc, curr) => acc + (curr.custo_total_curso ?? 0),
     0
   );
 
@@ -202,11 +204,11 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
   };
 
   const boardCourses = getBoardCourses();
-  const boardTotalMensalPedagogico = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_pedagogico || 0), 0);
-  const boardTotalMensalEstagio = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_estagio || 0), 0);
-  const boardTotalMensalGeral = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_curso || 0), 0);
+  const boardTotalMensalPedagogico = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_pedagogico ?? 0), 0);
+  const boardTotalMensalEstagio = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_estagio ?? 0), 0);
+  const boardTotalMensalGeral = boardCourses.reduce((sum, c) => sum + (c.custo_mensal_medio_curso ?? 0), 0);
   const boardTotalAnualGeral = boardTotalMensalGeral * 12;
-  const boardTotalGeralCurso = boardCourses.reduce((sum, c) => sum + (c.custo_total_curso || 0), 0);
+  const boardTotalGeralCurso = boardCourses.reduce((sum, c) => sum + (c.custo_total_curso ?? 0), 0);
 
   // Exportação CSV formatada para Excel / Apresentação Executiva
   const handleExportCSV = () => {
@@ -222,16 +224,19 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
       'Custo Total do Curso (R$)',
     ];
 
+    // Custo sem acesso (NaN) sai como célula vazia
+    const fmtCsv = (n: number) => (Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '');
+
     const rows = boardCourses.map((c) => [
       `"${c.nome_curso.replace(/"/g, '""')}"`,
       `"${c.grau}"`,
       c.duracao_curso.toString().replace('.', ','),
       c.quantidade_modulos,
-      (c.custo_mensal_medio_pedagogico || 0).toFixed(2).replace('.', ','),
-      (c.custo_mensal_medio_estagio || 0).toFixed(2).replace('.', ','),
-      (c.custo_mensal_medio_curso || 0).toFixed(2).replace('.', ','),
-      ((c.custo_mensal_medio_curso || 0) * 12).toFixed(2).replace('.', ','),
-      (c.custo_total_curso || 0).toFixed(2).replace('.', ','),
+      fmtCsv(c.custo_mensal_medio_pedagogico ?? 0),
+      fmtCsv(c.custo_mensal_medio_estagio ?? 0),
+      fmtCsv(c.custo_mensal_medio_curso ?? 0),
+      fmtCsv((c.custo_mensal_medio_curso ?? 0) * 12),
+      fmtCsv(c.custo_total_curso ?? 0),
     ]);
 
     // Linha de totalização
@@ -240,11 +245,11 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
       '""',
       '""',
       '""',
-      boardTotalMensalPedagogico.toFixed(2).replace('.', ','),
-      boardTotalMensalEstagio.toFixed(2).replace('.', ','),
-      boardTotalMensalGeral.toFixed(2).replace('.', ','),
-      boardTotalAnualGeral.toFixed(2).replace('.', ','),
-      boardTotalGeralCurso.toFixed(2).replace('.', ','),
+      fmtCsv(boardTotalMensalPedagogico),
+      fmtCsv(boardTotalMensalEstagio),
+      fmtCsv(boardTotalMensalGeral),
+      fmtCsv(boardTotalAnualGeral),
+      fmtCsv(boardTotalGeralCurso),
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\r\n');
@@ -613,17 +618,17 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
 
                       {/* Mensal Pedagógico */}
                       <td className="py-3.5 px-4 text-right text-slate-700 font-medium tabular">
-                        {formatCurrency(c.custo_mensal_medio_pedagogico || 0)}
+                        {formatCurrency(c.custo_mensal_medio_pedagogico ?? 0)}
                       </td>
 
                       {/* Mensal Estágio */}
                       <td className="py-3.5 px-4 text-right text-slate-700 font-medium tabular">
-                        {formatCurrency(c.custo_mensal_medio_estagio || 0)}
+                        {formatCurrency(c.custo_mensal_medio_estagio ?? 0)}
                       </td>
 
                       {/* Mensal Total */}
                       <td className="py-3.5 px-4 text-right font-extrabold text-[#117d5d] tabular bg-emerald-50/50">
-                        {formatCurrency(c.custo_mensal_medio_curso || 0)}
+                        {formatCurrency(c.custo_mensal_medio_curso ?? 0)}
                       </td>
 
                       {/* Custo Total */}
@@ -706,11 +711,11 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
                 </td>
                 {/* Somatório Mensal Pedagógico */}
                 <td className="py-4 px-4 text-right font-bold text-xs font-mono text-slate-800 tabular">
-                  {formatCurrency(selectedCoursesList.reduce((s, c) => s + (c.custo_mensal_medio_pedagogico || 0), 0))}
+                  {formatCurrency(selectedCoursesList.reduce((s, c) => s + (c.custo_mensal_medio_pedagogico ?? 0), 0))}
                 </td>
                 {/* Somatório Mensal Estágio */}
                 <td className="py-4 px-4 text-right font-bold text-xs font-mono text-slate-800 tabular">
-                  {formatCurrency(selectedCoursesList.reduce((s, c) => s + (c.custo_mensal_medio_estagio || 0), 0))}
+                  {formatCurrency(selectedCoursesList.reduce((s, c) => s + (c.custo_mensal_medio_estagio ?? 0), 0))}
                 </td>
                 {/* SOMATÓRIO CUSTO MENSAL TOTAL SELECIONADOS */}
                 <td className="py-4 px-4 text-right font-extrabold text-base font-mono text-[#117d5d] tabular bg-emerald-100/80">
@@ -882,16 +887,16 @@ export const GeneralReportDashboard: React.FC<GeneralReportDashboardProps> = ({
                           <td className="py-2.5 px-3 font-semibold text-slate-700">{c.grau}</td>
                           <td className="py-2.5 px-3 text-slate-600">{c.duracao_curso} anos</td>
                           <td className="py-2.5 px-3 text-right text-slate-700 tabular">
-                            {formatCurrency(c.custo_mensal_medio_pedagogico || 0)}
+                            {formatCurrency(c.custo_mensal_medio_pedagogico ?? 0)}
                           </td>
                           <td className="py-2.5 px-3 text-right text-slate-700 tabular">
-                            {formatCurrency(c.custo_mensal_medio_estagio || 0)}
+                            {formatCurrency(c.custo_mensal_medio_estagio ?? 0)}
                           </td>
                           <td className="py-2.5 px-3 text-right font-extrabold text-[#117d5d] tabular bg-emerald-50/50">
-                            {formatCurrency(c.custo_mensal_medio_curso || 0)}
+                            {formatCurrency(c.custo_mensal_medio_curso ?? 0)}
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-slate-900 tabular">
-                            {formatCurrency((c.custo_mensal_medio_curso || 0) * 12)}
+                            {formatCurrency((c.custo_mensal_medio_curso ?? 0) * 12)}
                           </td>
                         </tr>
                       ))

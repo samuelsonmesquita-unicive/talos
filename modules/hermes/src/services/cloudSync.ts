@@ -47,15 +47,23 @@ function enqueueWrite(
 // ---------------------------------------------------------------------------
 // Mapeamento banco <-> app
 // ---------------------------------------------------------------------------
+// Salário e custos são confidenciais: o banco não libera essas colunas para
+// SELECT direto. Só o admin os recebe, pelas funções hermes_admin_custos_*
+// (o papel é checado no banco). Para os demais, os campos ficam NaN ("—").
 const CURSO_COLUMNS =
   'id, nome_curso, grau, duracao_curso, quantidade_modulos, status_pedagogico, status_estagio, ' +
-  'status_geral, custo_total_pedagogico, custo_mensal_medio_pedagogico, custo_total_estagio, ' +
-  'custo_mensal_medio_estagio, custo_total_curso, custo_mensal_medio_curso, dados_parciais, ' +
-  'criado_em, atualizado_em';
+  'status_geral, dados_parciais, criado_em, atualizado_em';
 
 const REGISTRO_COLUMNS =
-  'id, indice, curso_id, setor, modulo, cargo, quantidade, carga_horaria, salario, custo, ' +
+  'id, indice, curso_id, setor, modulo, cargo, quantidade, carga_horaria, ' +
   'criado_em, atualizado_em, hermes_cursos!inner(nome_curso, grau)';
+
+let costAccess = false;
+
+/** Liga a leitura dos custos (só para admin; o banco recusa os demais). */
+export function setCostAccess(isAdmin: boolean): void {
+  costAccess = isAdmin;
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function toCurso(row: any): CursoMestre {
@@ -98,7 +106,6 @@ function toRegistro(row: any): RegistroItem {
   if (row.atualizado_em) registro.atualizado_em = row.atualizado_em;
   return registro;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // O PostgREST devolve no máximo 1000 linhas por requisição: paginar.
 const PAGE_SIZE = 1000;
@@ -192,19 +199,44 @@ export async function saveSalaryConfigToCloud(config: SalaryConfig): Promise<voi
 // ---------------------------------------------------------------------------
 // Leituras (lançam erro em falha, para o chamador não apagar dados locais)
 // ---------------------------------------------------------------------------
+/**
+ * Custos por id (só admin); vazio para os demais, e aí os campos ficam NaN.
+ * Falha na função (ex.: migration 0018 ainda não aplicada) não derruba a
+ * carga dos dados: os custos só ficam como "—".
+ */
+async function fetchCustos(fn: string): Promise<Map<string, any>> {
+  if (!costAccess) return new Map();
+  try {
+    const rows = await fetchAllRows<any>((from, to) =>
+      supabase.rpc(fn).order('id').range(from, to)
+    );
+    return new Map(rows.map((r) => [r.id, r]));
+  } catch (e) {
+    console.warn(`Falha ao carregar ${fn}:`, e);
+    return new Map();
+  }
+}
+
 export async function fetchCoursesFromCloud(): Promise<CursoMestre[]> {
-  const rows = await fetchAllRows<unknown>((from, to) =>
-    supabase.from('hermes_cursos').select(CURSO_COLUMNS).order('id').range(from, to)
-  );
-  return rows.map(toCurso);
+  const [rows, custos] = await Promise.all([
+    fetchAllRows<any>((from, to) =>
+      supabase.from('hermes_cursos').select(CURSO_COLUMNS).order('id').range(from, to)
+    ),
+    fetchCustos('hermes_admin_custos_cursos'),
+  ]);
+  return rows.map((row) => toCurso({ ...row, ...custos.get(row.id) }));
 }
 
 export async function fetchRegistrosFromCloud(): Promise<RegistroItem[]> {
-  const rows = await fetchAllRows<unknown>((from, to) =>
-    supabase.from('hermes_registros').select(REGISTRO_COLUMNS).order('id').range(from, to)
-  );
-  return rows.map(toRegistro);
+  const [rows, custos] = await Promise.all([
+    fetchAllRows<any>((from, to) =>
+      supabase.from('hermes_registros').select(REGISTRO_COLUMNS).order('id').range(from, to)
+    ),
+    fetchCustos('hermes_admin_custos_registros'),
+  ]);
+  return rows.map((row) => toRegistro({ ...row, ...custos.get(row.id) }));
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------------------------------------------------------------------------
 // Tempo real: busca inicial + nova busca (com debounce) a cada mudança na tabela

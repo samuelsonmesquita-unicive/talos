@@ -57,7 +57,6 @@ export const CourseSelector: React.FC<CourseSelectorProps> = ({
       <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
         {cursos.map((curso) => {
           const isSelected = selectedCursoId === curso.id;
-          const hasCost = curso.custo_total_curso > 0;
 
           return (
             <button
@@ -86,17 +85,11 @@ export const CourseSelector: React.FC<CourseSelectorProps> = ({
                   <p className="text-xs text-slate-500 mt-0.5">
                     {curso.grau} • {curso.duracao_curso} anos
                   </p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-xs text-slate-700 font-mono">
-                      Custo: R$ {curso.custo_total_curso.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
-                    {curso.dados_parciais && (
+                  {curso.dados_parciais && (
+                    <div className="flex items-center gap-2 mt-1.5">
                       <span className="badge-unicive-green text-[10px]">Parcial</span>
-                    )}
-                    {!hasCost && (
-                      <span className="text-xs text-amber-600 font-semibold">Sem custo</span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </button>

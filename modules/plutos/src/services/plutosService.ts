@@ -4,7 +4,7 @@ import { CursoMestre, PlutosResultado, RelatorioLinha } from '../types';
 export async function fetchCursosComCusto(): Promise<CursoMestre[]> {
   const { data, error } = await supabase
     .from('hermes_cursos')
-    .select('id, nome_curso, grau, duracao_curso, custo_total_curso, dados_parciais, status_geral')
+    .select('id, nome_curso, grau, duracao_curso, dados_parciais, status_geral')
     .order('nome_curso');
 
   if (error) throw new Error(`Falha ao carregar cursos: ${error.message}`);

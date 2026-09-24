@@ -512,7 +512,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 Módulo {currentModulo} de {total} &bull; Ano {Math.ceil(currentModulo / MODULOS_POR_ANO)} &bull; {currentSetor}
               </h3>
               <span className="text-[11px] text-slate-500">
-                {MESES_POR_MODULO} meses &bull; custo = qtd &times; salário c/ encargos (+***%) &times; {MESES_POR_MODULO}
+                {MESES_POR_MODULO} meses &bull; custo calculado pelo servidor
               </span>
             </div>
           </div>
@@ -684,7 +684,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(prof)}</td>
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(med)}</td>
                         <td className="py-1 px-3 text-right font-bold tabular text-slate-900">
-                          {formatCurrency((prof?.custo || 0) + (med?.custo || 0))}
+                          {formatCurrency((prof?.custo ?? 0) + (med?.custo ?? 0))}
                         </td>
                       </tr>
                     );

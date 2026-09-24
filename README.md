@@ -35,25 +35,7 @@ talos/
 
 O **Módulo Hermes** é o núcleo de dimensionamento docente e cálculo orçamentário para cursos de graduação e pós-graduação EaD da Unicive.
 
-### 📐 Regras de Cálculo Salarial e Encargos da Folha
-
-Para cada carga horária semanal ($10h$, $20h$ ou $40h$) e cargo (*Professor* ou *Mediador*), o custo mensal do docente é computado a partir do salário base acrescido das provisões trabalhistas e dos encargos patronais:
-
-$$ \text{Custo Mensal} = \text{Salário Base} \times \left(1 + \text{Alíquota Trabalhista} + \text{Alíquota Encargos}\right) $$
-
-- **Provisões Trabalhistas ($***\%$):**
-  - $13º$ Salário: $*** \approx ***\%$
-  - Férias: $*** \approx ***\%$
-  - $1/3$ Constitucional de Férias: $*** \times \frac{1}{3} = *** \approx ***\%$
-  - *Subtotal Trabalhista:* $*** \approx ***\%$
-- **Encargos Sociais e Previdenciários ($***\%$):**
-  - INSS Patronal: $***\%$
-  - Encargos Adicionais da Folha: $***\%$
-  - *Subtotal Encargos:* $***\%$
-- **Acréscimo Total da Folha:** $+***\%$ sobre o salário base (fator $\approx ***$).
-
-O custo semestral de cada demanda é obtido por:
-$$ \text{Custo Módulo} = \text{Quantidade} \times \text{Custo Mensal c/ Encargos} \times 3\text{ meses} $$
+A tabela salarial, os encargos e todos os custos são **confidenciais**: ficam só no banco de dados, são calculados no servidor e só o perfil `admin` tem acesso aos valores.
 
 ---
 

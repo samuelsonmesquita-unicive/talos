@@ -3,7 +3,7 @@ export interface CursoMestre {
   nome_curso: string;
   grau: string;
   duracao_curso: number;
-  custo_total_curso: number;
+  // Sem custo: é confidencial (só admin, via Relatório Executivo)
   dados_parciais: boolean;
   status_geral: 'completo' | 'parcial';
 }
