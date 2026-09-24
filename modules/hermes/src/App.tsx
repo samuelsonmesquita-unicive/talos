@@ -314,15 +314,10 @@ export default function App() {
 
       {/* Rodapé Institucional Unicive */}
       <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-center gap-2">
           <span>
             &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Gestão de Demandas Docentes EaD
-          </span>
-          <div className="flex items-center gap-3 text-[11px] text-slate-400">
-            <span>Base Centralizada na Nuvem (Supabase)</span>
-            <span>&bull;</span>
-            <span>Reajuste Salarial 4% Aplicado</span>
-          </div>
+          </span>          
         </div>
       </footer>
 

@@ -166,7 +166,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
           <div className="space-y-1">
             <p className="font-bold text-sm text-amber-900">Aviso de Cadastro Parcial:</p>
             <p>
-              &ldquo;Este curso ainda possui cadastro incompleto — valores calculados apenas com os módulos já registrados.&rdquo;
+              Este curso ainda possui cadastro incompleto — valores calculados apenas com os módulos já registrados.
             </p>
             {(onContinueRegistration || onSelectCourseForFlow) && (
               <button

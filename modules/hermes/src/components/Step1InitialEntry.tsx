@@ -261,11 +261,11 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white leading-snug">
-            Gestão de Demandas &bull; Matriz de Custo Docente
+            Gestão de Demandas - Matriz de Custo Docente
           </h1>
 
           <p className="mt-2 text-sm text-emerald-100/90 font-medium leading-relaxed">
-            &ldquo;Digite o nome do curso e informe o grau para começar.&rdquo;
+            Digite o nome do curso e informe o grau para começar.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-emerald-200/80 pt-3 border-t border-emerald-800/60">
@@ -451,7 +451,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
             {/* Caixa explicativa de cálculo */}
             <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
               <span className="text-slate-600 font-medium">
-                Cálculo: <strong className="text-slate-900">quantidade_modulos = duracao_curso &times; 4</strong>
+                Cálculo: <strong className="text-slate-900">Quantidade de módulos = duração do curso x 4</strong>
               </span>
               <span className="px-2 py-0.5 rounded font-bold text-xs bg-emerald-100 text-[#117d5d] border border-emerald-300">
                 {modulosCalculados !== null
