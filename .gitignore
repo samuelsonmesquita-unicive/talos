@@ -9,3 +9,6 @@ coverage/
 
 # Atalhos do Google Drive (não são código)
 *.gdoc
+
+# Scripts do banco: rodados direto no Supabase, ficam só na cópia local
+supabase/

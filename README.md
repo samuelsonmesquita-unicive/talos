@@ -15,7 +15,7 @@ talos/
 ├── README.md                      # Documentação Geral do Projeto Talos
 ├── .gitignore                     # Arquivos ignorados pelo Git (node_modules, .env, etc.)
 ├── portal/                        # Página inicial do Talos (lista dos módulos)
-├── supabase/migrations/           # Banco de dados compartilhado (SQL): login, perfis e tabelas de cada módulo
+├── supabase/migrations/           # Scripts SQL do banco (só na cópia local, fora do Git)
 │
 └── modules/
     ├── hermes/                    # [ATIVO] Módulo Hermes: Gestão de Demandas & Matriz de Custo Docente EaD
