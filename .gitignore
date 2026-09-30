@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Atalhos do Google Drive
+*.gdoc
+
+# Scripts do banco: rodados direto no Supabase, ficam só na cópia local
+supabase/

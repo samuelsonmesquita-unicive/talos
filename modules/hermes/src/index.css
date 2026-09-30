@@ -1,0 +1,140 @@
+/* ─────────────────────────────────────────────────────────────
+   ESTILO OFICIAL UNICIVE — CENTRO UNIVERSITÁRIO CIDADE VERDE
+   Paleta:
+     - Verde Primário Unicive: #239371 (hover: #117d5d)
+     - Verde Destaque institucional: #7EBD73
+     - Laranja / Âmbar EaD Oficial: #E7972A (hover: #cf801c)
+     - Fundo Canvas Suave: #F4F7F5
+     - Texto Principal: #212327
+     - Verde Profundo Noturno (Header/Footer): #0d281e
+     - Tipografia: Open Sans & Kumbh Sans
+   ───────────────────────────────────────────────────────────── */
+@import "tailwindcss";
+
+:root {
+  --unicive-green: #239371;
+  --unicive-green-hover: #117d5d;
+  --unicive-green-light: #7ebd73;
+  --unicive-green-subtle: #ebf7f2;
+  --unicive-orange: #e7972a;
+  --unicive-orange-hover: #d28117;
+  --unicive-orange-light: #fef5ea;
+  --unicive-dark: #0d281e;
+  --unicive-dark-surface: #143529;
+  --unicive-body: #212327;
+  --unicive-muted: #5f6570;
+  --unicive-border: #e2e8e4;
+  --unicive-bg: #f5f8f6;
+
+  --font-sans: "Open Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Kumbh Sans", "Open Sans", sans-serif;
+  --font-mono: "Roboto Mono", monospace;
+}
+
+body {
+  background-color: var(--unicive-bg);
+  color: var(--unicive-body);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-family: var(--font-mono);
+}
+
+/* Botões Unicive */
+.btn-unicive-primary {
+  background-color: var(--unicive-green);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(35, 147, 113, 0.2);
+  cursor: pointer;
+}
+.btn-unicive-primary:hover {
+  background-color: var(--unicive-green-hover);
+  box-shadow: 0 4px 6px -1px rgba(35, 147, 113, 0.3);
+}
+
+.btn-unicive-orange {
+  background-color: var(--unicive-orange);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(231, 151, 42, 0.2);
+  cursor: pointer;
+}
+.btn-unicive-orange:hover {
+  background-color: var(--unicive-orange-hover);
+  box-shadow: 0 4px 6px -1px rgba(231, 151, 42, 0.3);
+}
+
+.btn-unicive-outline {
+  background-color: #ffffff;
+  color: var(--unicive-body);
+  border: 1px solid var(--unicive-border);
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.btn-unicive-outline:hover {
+  border-color: var(--unicive-green);
+  color: var(--unicive-green);
+  background-color: var(--unicive-green-subtle);
+}
+
+/* Card Institucional Unicive */
+.card-unicive {
+  background: #ffffff;
+  border: 1px solid var(--unicive-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px -2px rgba(13, 40, 30, 0.05);
+}
+
+.card-unicive-header {
+  border-bottom: 1px solid var(--unicive-border);
+  background: linear-gradient(to right, #ffffff, #f9faf9);
+}
+
+/* Badge de Destaque Unicive */
+.badge-unicive-ead {
+  background-color: #e7972a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.6875rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge-unicive-green {
+  background-color: #ebf7f2;
+  color: #117d5d;
+  font-weight: 600;
+  font-size: 0.6875rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid rgba(35, 147, 113, 0.25);
+}

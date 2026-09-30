@@ -1,0 +1,37 @@
+name: Keep-alive Supabase
+
+# O plano Free do Supabase pausa o projeto depois de ~7 dias sem atividade.
+# A cada 3 dias este workflow chama a RPC talos_keep_alive() (migration 0020),
+# que faz uma consulta no banco. A função aceita só uma chamada a cada 3 dias:
+# se recusar (HTTP 429), a consulta já passou pelo banco e conta como atividade,
+# então o workflow não falha. Qualquer outra resposta falha o workflow e o
+# GitHub avisa por e-mail (ex.: projeto pausado ou migration não aplicada).
+
+on:
+  schedule:
+    - cron: "0 12 */3 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar talos_keep_alive
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          status=$(curl -sS -o resposta.txt -w '%{http_code}' -X POST \
+            "$SUPABASE_URL/rest/v1/rpc/talos_keep_alive" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "HTTP $status"
+          cat resposta.txt; echo
+          case "$status" in
+            200) echo "Chamada registrada." ;;
+            429) echo "Já houve chamada nos últimos 3 dias; o banco foi acessado mesmo assim." ;;
+            *) exit 1 ;;
+          esac
