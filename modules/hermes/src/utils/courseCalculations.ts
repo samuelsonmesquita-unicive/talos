@@ -2,6 +2,7 @@ import {
   CursoMestre,
   DisciplinaEstagio,
   Grau,
+  QuadroItem,
   RegistroItem,
   SectorStatus,
   ModuloAgregado,
@@ -58,9 +59,28 @@ export function totaisEstagio(disciplinas: DisciplinaEstagio[]): {
   return { porModulo, totalCh, modulos: modulosComEstagio(disciplinas) };
 }
 
+/** Soma o lançamento de um registro ao quadro acumulado (agrupado por carga horária). */
+function somarAoQuadro(quadro: QuadroItem[], reg?: RegistroItem): QuadroItem[] {
+  if (!reg || reg.quantidade <= 0) return quadro;
+  const existente = quadro.find((q) => q.carga_horaria === reg.carga_horaria);
+  if (!existente) {
+    return [...quadro, { carga_horaria: reg.carga_horaria, quantidade: reg.quantidade }].sort(
+      (a, b) => parseInt(a.carga_horaria) - parseInt(b.carga_horaria)
+    );
+  }
+  return quadro.map((q) =>
+    q === existente ? { ...q, quantidade: q.quantidade + reg.quantidade } : q
+  );
+}
+
 /**
  * Agrega os módulos de um setor específico. modulosPermitidos (setor Estágio) limita
- * a contagem de status e custo aos módulos com disciplina de estágio.
+ * a contagem de status e os lançamentos aos módulos com disciplina de estágio.
+ *
+ * Regra de permanência (espelha hermes_fn_agregar_setor/estagio, Bloco 21): cada
+ * lançamento é uma contratação nova que entra no seu módulo e fica até o fim do
+ * curso. O custo de um módulo é a soma dos lançamentos dele e dos anteriores; no
+ * Estágio esse custo continua também nos módulos sem estágio que vêm depois.
  */
 export function agregarModulosSetor(
   setor: Setor,
@@ -84,31 +104,31 @@ export function agregarModulosSetor(
   let somaCustoModulo = 0;
   let somaCustoMensal = 0;
 
+  // Quadro vigente: tudo o que entrou até o módulo atual (inclusive)
+  let custoProfAcumulado = 0;
+  let custoMedAcumulado = 0;
+  let quadroProf: QuadroItem[] = [];
+  let quadroMed: QuadroItem[] = [];
+
   for (let s = 1; s <= quantidade_modulos; s++) {
-    if (modulosPermitidos && !modulosPermitidos.has(s)) {
-      modulos.push({
-        modulo: s,
-        custo_professor: 0,
-        custo_mediador: 0,
-        custo_modulo: 0,
-        custo_mensal_modulo: 0,
-        professor_salvo: false,
-        mediador_salvo: false,
-        concluido: false,
-        sem_estagio: true,
-      });
-      continue;
-    }
-    const regProf = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Professor');
-    const regMed = setorRegistros.find((r) => r.modulo === s && r.cargo === 'Mediador');
+    const semEstagio = Boolean(modulosPermitidos && !modulosPermitidos.has(s));
+    const regProf = semEstagio
+      ? undefined
+      : setorRegistros.find((r) => r.modulo === s && r.cargo === 'Professor');
+    const regMed = semEstagio
+      ? undefined
+      : setorRegistros.find((r) => r.modulo === s && r.cargo === 'Mediador');
 
     const profSalvo = Boolean(regProf);
     const medSalvo = Boolean(regMed);
     const concluido = profSalvo && medSalvo; // Seção 3.1: só conta como salvo quando ambos salvos
 
-    const custoProf = regProf ? regProf.custo : 0;
-    const custoMed = regMed ? regMed.custo : 0;
-    const custoModulo = custoProf + custoMed;
+    if (regProf) custoProfAcumulado += regProf.custo;
+    if (regMed) custoMedAcumulado += regMed.custo;
+    quadroProf = somarAoQuadro(quadroProf, regProf);
+    quadroMed = somarAoQuadro(quadroMed, regMed);
+
+    const custoModulo = custoProfAcumulado + custoMedAcumulado;
     const custoMensal = custoModulo / MESES_POR_MODULO;
 
     if (concluido) {
@@ -120,15 +140,18 @@ export function agregarModulosSetor(
 
     modulos.push({
       modulo: s,
-      custo_professor: custoProf,
-      custo_mediador: custoMed,
+      custo_professor: custoProfAcumulado,
+      custo_mediador: custoMedAcumulado,
       custo_modulo: custoModulo,
       custo_mensal_modulo: custoMensal,
       professor_salvo: profSalvo,
       mediador_salvo: medSalvo,
       concluido,
+      ...(semEstagio ? { sem_estagio: true } : {}),
       registro_professor: regProf,
       registro_mediador: regMed,
+      quadro_professor: quadroProf,
+      quadro_mediador: quadroMed,
     });
   }
 
@@ -165,14 +188,16 @@ export function agregarModulosSetor(
  * Atualiza registros -> módulos -> setores -> curso
  *
  * Espelha as regras do banco (hermes_fn_recalcular_curso):
- *   - Pedagógico só fica completo depois de informar o estágio (tem_estagio != null).
+ *   - Pedagógico só fica completo depois de informar o estágio (tem_estagio != null)
+ *     e enviar a matriz curricular.
  *   - Estágio: null -> não iniciado; false -> completo com custo zero;
  *     true -> conta só os módulos com disciplina de estágio.
  */
 export function recalcularCurso(
   cursoAtual: CursoMestre,
   registros: RegistroItem[],
-  disciplinas: DisciplinaEstagio[]
+  disciplinas: DisciplinaEstagio[],
+  temMatriz: boolean
 ): {
   curso: CursoMestre;
   setorPedagogico: SetorAgregado;
@@ -182,7 +207,7 @@ export function recalcularCurso(
 
   // 1 e 2 e 3. Agrega Pedagógico
   const pedData = agregarModulosSetor('Pedagógico', qtdModulos, registros);
-  if (pedData.status === 'completo' && cursoAtual.tem_estagio == null) {
+  if (pedData.status === 'completo' && (cursoAtual.tem_estagio == null || !temMatriz)) {
     pedData.status = 'incompleto';
   }
   const setorPedagogico: SetorAgregado = {

@@ -13,17 +13,20 @@ import {
   Layers,
   Pencil,
   Briefcase,
+  Eye,
 } from 'lucide-react';
 import { CursoMestre, Grau, Setor } from '../types';
 import { parseDurationInput } from '../utils/salary';
 import {
   findCourseByKey,
   getAllCourses,
+  getMatriz,
   getRegistrosForCourse,
   resetSectorData,
   upsertCourseMaster,
 } from '../services/courseStore';
 import { SemEstagioAviso } from './SemEstagioAviso';
+import { useAuth } from '../hooks/useAuth';
 
 const NOVO_CADASTRO = '__novo_cadastro__';
 
@@ -55,6 +58,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
   onOpenReport,
   onGoToReport,
 }) => {
+  const { isAdmin } = useAuth();
   const handleStartFlow = (
     curso: CursoMestre,
     setorAlvo: Setor,
@@ -93,8 +97,10 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     '4.4' | 'pedagogico-completo' | 'estagio-completo' | 'sem-estagio' | null
   >(null);
   const [incompletedSectorName, setIncompletedSectorName] = useState<Setor>('Pedagógico');
-  // Pedagógico com todos os módulos salvos, faltando só as disciplinas de estágio
+  // Pedagógico com todos os módulos salvos, faltando só a etapa final
+  // (disciplinas de estágio e/ou matriz curricular)
   const [faltaSoEstagio, setFaltaSoEstagio] = useState(false);
+  const [faltaSoMatriz, setFaltaSoMatriz] = useState(false);
 
   const nomesCadastrados = Array.from(
     new Set(getAllCourses().map((c) => c.nome_curso))
@@ -136,6 +142,7 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
     setDurationLockWarning(null);
     setDialogScenario(null);
     setFaltaSoEstagio(false);
+    setFaltaSoMatriz(false);
 
     if (!setorUsuario) {
       setValidationError('Informe o seu setor: Pedagógico ou Estágio.');
@@ -202,8 +209,8 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
       return;
     }
 
-    // Pedagógico incompleto: pode faltar só a etapa de estágio (ex.: cursos cadastrados
-    // antes dessa etapa existir)
+    // Pedagógico incompleto: pode faltar só a etapa final (ex.: cursos cadastrados
+    // antes da etapa de estágio ou da matriz existirem)
     const regsPed = getRegistrosForCourse(curso.nome_curso, curso.grau).filter(
       (r) => r.setor === 'Pedagógico'
     );
@@ -212,7 +219,9 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
         regsPed.some((r) => r.modulo === m && r.cargo === 'Professor') &&
         regsPed.some((r) => r.modulo === m && r.cargo === 'Mediador')
     );
+    const temMatriz = Boolean(getMatriz(curso.nome_curso, curso.grau));
     setFaltaSoEstagio(modulosOk && curso.tem_estagio == null);
+    setFaltaSoMatriz(modulosOk && curso.tem_estagio != null && !temMatriz);
     setIncompletedSectorName('Pedagógico');
     setDialogScenario('4.4');
   };
@@ -581,8 +590,8 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                     onClick={() => handleStartFlow(activeCourse, 'Pedagógico', true, true)}
                     className="btn-unicive-primary flex-1 text-xs"
                   >
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Editar disciplinas de estágio
+                    {isAdmin ? <Pencil className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                    {isAdmin ? 'Editar disciplinas de estágio e matriz' : 'Ver disciplinas de estágio e matriz'}
                   </button>
                 )}
               </div>
@@ -599,8 +608,13 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                 <p>
                   {faltaSoEstagio ? (
                     <>
-                      Os módulos já foram preenchidos; <strong>faltam apenas as disciplinas de estágio</strong>.
+                      Os módulos já foram preenchidos; <strong>faltam apenas as disciplinas de estágio e a matriz curricular</strong>.
                       Selecione <strong>Sim</strong> para informá-las agora.
+                    </>
+                  ) : faltaSoMatriz ? (
+                    <>
+                      Os módulos e as disciplinas de estágio já foram preenchidos; <strong>falta apenas enviar a matriz curricular</strong>.
+                      Selecione <strong>Sim</strong> para enviá-la agora.
                     </>
                   ) : (
                     <>
@@ -617,17 +631,24 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
                   className="btn-unicive-orange flex-1 text-xs"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  {faltaSoEstagio ? 'Sim (Informar disciplinas de estágio)' : 'Sim (Continuar de onde parou)'}
+                  {faltaSoEstagio
+                    ? 'Sim (Informar disciplinas de estágio e matriz)'
+                    : faltaSoMatriz
+                    ? 'Sim (Enviar matriz curricular)'
+                    : 'Sim (Continuar de onde parou)'}
                 </button>
 
-                <button
-                  id="btn-cenario-4-4-nao"
-                  onClick={handleReiniciarSetorDoZero}
-                  className="btn-unicive-outline flex-1 text-xs"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Não (Reiniciar do zero)
-                </button>
+                {/* Reiniciar o Pedagógico limpa o estágio: com o estágio já informado, só o admin */}
+                {(isAdmin || incompletedSectorName !== 'Pedagógico' || activeCourse.tem_estagio == null) && (
+                  <button
+                    id="btn-cenario-4-4-nao"
+                    onClick={handleReiniciarSetorDoZero}
+                    className="btn-unicive-outline flex-1 text-xs"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Não (Reiniciar do zero)
+                  </button>
+                )}
               </div>
             </div>
           )}

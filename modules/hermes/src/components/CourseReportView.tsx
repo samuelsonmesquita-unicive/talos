@@ -3,8 +3,11 @@ import { CursoMestre } from '../types';
 import {
   getAllCourses,
   getDisciplinasEstagio,
+  getMatriz,
   getRegistrosForCourse,
 } from '../services/courseStore';
+import { useAuth } from '../hooks/useAuth';
+import { MatrizCurricular } from './MatrizCurricular';
 import { formatCurrency } from '../utils/salary';
 import { agregarModulosSetor, totaisEstagio } from '../utils/courseCalculations';
 import {
@@ -17,6 +20,7 @@ import {
   Users,
   UserCheck,
   TrendingUp,
+  FileText,
 } from 'lucide-react';
 
 interface CourseReportViewProps {
@@ -34,6 +38,9 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
   onGoToConsult,
   onOpenPlutos,
 }) => {
+  const { isAdmin } = useAuth();
+  // Força nova leitura do cache depois de enviar/substituir a matriz
+  const [, setMatrizVersao] = useState(0);
   const courses = getAllCourses();
   const [selectedCourseKey, setSelectedCourseKey] = useState<string>(
     initialCourse ? initialCourse.id : (courses[0]?.id || '')
@@ -59,6 +66,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
   }
 
   const registros = getRegistrosForCourse(activeCourse.nome_curso, activeCourse.grau);
+  const matriz = getMatriz(activeCourse.nome_curso, activeCourse.grau);
 
   const pedData = agregarModulosSetor(
     'Pedagógico',
@@ -257,6 +265,21 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
         </div>
       </div>
 
+      {/* Matriz curricular: enviada pelo Pedagógico no fim do fluxo; aqui todos baixam e só o admin substitui */}
+      <div className="card-unicive p-4 border border-slate-200 space-y-2 print:hidden">
+        <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-[#239371]" />
+          Matriz curricular
+        </h3>
+        <MatrizCurricular
+          key={activeCourse.id}
+          curso={activeCourse}
+          matriz={matriz}
+          podeEnviar={isAdmin}
+          onEnviada={() => setMatrizVersao((v) => v + 1)}
+        />
+      </div>
+
       {/* TABELAS POR SETOR (Pedagógico e Estágio) COM COLUNAS DE PROFESSORES E MEDIADORES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Setor Pedagógico */}
@@ -277,13 +300,15 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                 <thead className="text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 bg-slate-50/70">
                   <tr>
                     <th className="py-1.5 px-2">Módulo</th>
-                    <th className="py-1.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
-                      Professores
+                    <th className="py-1.5 px-2 text-center" title="Professores que entram no módulo (ficam até o fim do curso) e carga horária">
+                      Novos prof.
                     </th>
-                    <th className="py-1.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
-                      Mediadores
+                    <th className="py-1.5 px-2 text-center" title="Mediadores que entram no módulo (ficam até o fim do curso) e carga horária">
+                      Novos med.
                     </th>
-                    <th className="py-1.5 px-2 text-right">Custo do Módulo</th>
+                    <th className="py-1.5 px-2 text-right" title="Custo de todo o quadro vigente no módulo (quem entrou nele e nos anteriores)">
+                      Custo do Módulo
+                    </th>
                     <th className="py-1.5 px-2 text-right">Custo Mensal</th>
                   </tr>
                 </thead>
@@ -344,7 +369,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                       {totalMediadoresPed} med.
                     </td>
                     <td colSpan={2} className="py-2 px-2 text-right text-[11px] text-slate-400 font-normal">
-                      Vagas do ciclo
+                      Pessoas contratadas no curso
                     </td>
                   </tr>
                 </tfoot>
@@ -424,27 +449,42 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                 <thead className="text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 bg-slate-50/70">
                   <tr>
                     <th className="py-1.5 px-2">Módulo</th>
-                    <th className="py-1.5 px-2 text-center" title="Quantidade de Professores e Carga Horária">
-                      Professores
+                    <th className="py-1.5 px-2 text-center" title="Professores que entram no módulo (ficam até o fim do curso) e carga horária">
+                      Novos prof.
                     </th>
-                    <th className="py-1.5 px-2 text-center" title="Quantidade de Mediadores e Carga Horária">
-                      Mediadores
+                    <th className="py-1.5 px-2 text-center" title="Mediadores que entram no módulo (ficam até o fim do curso) e carga horária">
+                      Novos med.
                     </th>
-                    <th className="py-1.5 px-2 text-right">Custo do Módulo</th>
+                    <th className="py-1.5 px-2 text-right" title="Custo de todo o quadro vigente no módulo (quem entrou nele e nos anteriores)">
+                      Custo do Módulo
+                    </th>
                     <th className="py-1.5 px-2 text-right">Custo Mensal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {estData.modulos.filter((s) => !s.sem_estagio).map((s) => {
+                  {/* Módulos sem estágio só aparecem quando já há gente do Estágio no quadro
+                      (quem entra fica até o fim do curso) */}
+                  {estData.modulos
+                    .filter(
+                      (s) =>
+                        !s.sem_estagio ||
+                        [...s.quadro_professor, ...s.quadro_mediador].some((q) => q.quantidade > 0)
+                    )
+                    .map((s) => {
                     const profQtd = s.registro_professor?.quantidade ?? 0;
                     const profCh = s.registro_professor?.carga_horaria;
                     const medQtd = s.registro_mediador?.quantidade ?? 0;
                     const medCh = s.registro_mediador?.carga_horaria;
 
                     return (
-                      <tr key={s.modulo} className={s.concluido ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
+                      <tr key={s.modulo} className={s.concluido || s.sem_estagio ? 'hover:bg-slate-50/60' : 'opacity-50 italic hover:bg-slate-50/60'}>
                         <td className="py-1.5 px-2 font-semibold text-slate-900">
-                          {s.modulo}º Módulo {!s.concluido && '(Pendente)'}
+                          {s.modulo}º Módulo{' '}
+                          {s.sem_estagio ? (
+                            <span className="text-[10px] font-normal text-slate-500">(sem estágio · quadro continua)</span>
+                          ) : (
+                            !s.concluido && '(Pendente)'
+                          )}
                         </td>
 
                         {/* Coluna Professores com Quantidade */}
@@ -491,7 +531,7 @@ export const CourseReportView: React.FC<CourseReportViewProps> = ({
                       {totalMediadoresEst} med.
                     </td>
                     <td colSpan={2} className="py-2 px-2 text-right text-[11px] text-slate-400 font-normal">
-                      Vagas do ciclo
+                      Pessoas contratadas no curso
                     </td>
                   </tr>
                 </tfoot>

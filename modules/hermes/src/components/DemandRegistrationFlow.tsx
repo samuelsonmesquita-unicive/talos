@@ -1,14 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CursoMestre, Setor, CargaHoraria, RegistroItem, DisciplinaEstagio } from '../types';
+import {
+  CursoMestre,
+  Setor,
+  CargaHoraria,
+  RegistroItem,
+  DisciplinaEstagio,
+  MatrizCurso,
+  QuadroItem,
+} from '../types';
 import {
   saveOrUpdateRegistro,
   getRegistrosForCourse,
   getNextPendingModule,
   findCourseByKey,
   getDisciplinasEstagio,
+  getMatriz,
 } from '../services/courseStore';
+import { useAuth } from '../hooks/useAuth';
 import { formatCurrency } from '../utils/salary';
-import { MESES_POR_MODULO, MODULOS_POR_ANO, totaisEstagio } from '../utils/courseCalculations';
+import {
+  MESES_POR_MODULO,
+  MODULOS_POR_ANO,
+  agregarModulosSetor,
+  totaisEstagio,
+} from '../utils/courseCalculations';
 import { EstagioDisciplinasStep } from './EstagioDisciplinasStep';
 import { SemEstagioAviso } from './SemEstagioAviso';
 import {
@@ -25,7 +40,7 @@ import {
   BookOpen,
   Lock,
   AlertCircle,
-  Copy,
+  Eye,
   ListChecks,
 } from 'lucide-react';
 
@@ -72,13 +87,14 @@ const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, on
   const qtdOk = qtd.trim() !== '' && Number.isInteger(num) && num >= 0 && num <= MAX_QTD;
   const chLiberada = qtdOk && num > 0;
   const prefix = cargo.slice(0, 4).toLowerCase();
+  const plural = cargo === 'Professor' ? 'professores' : 'mediadores';
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
           {icon}
-          {cargo}
+          Novos {plural} neste módulo
         </span>
       </div>
 
@@ -129,12 +145,12 @@ const RoleFields: React.FC<RoleFieldsProps> = ({ cargo, icon, qtd, ch, onQtd, on
 
       <p className="mt-1.5 text-[11px] text-slate-500 leading-tight">
         {!qtdOk
-          ? `Qtd. de 0 a ${MAX_QTD} (0 = sem ${cargo.toLowerCase()})`
+          ? `Qtd. de 0 a ${MAX_QTD} (0 = ninguém novo)`
           : num === 0
-          ? 'Sem ' + cargo.toLowerCase() + ' neste módulo'
+          ? `Nenhum ${cargo.toLowerCase()} novo neste módulo`
           : !ch
           ? 'Escolha a carga horária semanal'
-          : `${num} ${cargo.toLowerCase()}(es) · carga ${ch} · custo calculado ao salvar`}
+          : `${num} ${cargo.toLowerCase()}(es) · carga ${ch} · ficam até o fim do curso`}
       </p>
     </div>
   );
@@ -188,6 +204,9 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   const [disciplinas, setDisciplinas] = useState<DisciplinaEstagio[]>(() =>
     getDisciplinasEstagio(curso.nome_curso, curso.grau)
   );
+  // Matriz curricular: obrigatória para o Pedagógico concluir (enviada na etapa final)
+  const [matriz, setMatriz] = useState<MatrizCurso | null>(() => getMatriz(curso.nome_curso, curso.grau));
+  const { isAdmin } = useAuth();
 
   // 'setor' = setor recém-concluído; 'curso' = ambos os setores concluídos
   const [showSetorCompletedPopup, setShowSetorCompletedPopup] = useState<{
@@ -266,16 +285,17 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     modulosSetor.find((m) => !concluidos.has(m)) ?? modulosSetor[modulosSetor.length - 1] ?? 1;
   const setorConcluido = modulosSetor.length > 0 && concluidos.size >= modulosSetor.length;
   const proximoModulo = (mod: number) => modulosSetor.find((m) => m > mod);
-  const moduloAnterior = (mod: number) => [...modulosSetor].reverse().find((m) => m < mod);
 
-  // Pedagógico: todos os módulos salvos; o setor só conclui depois da etapa de estágio
+  // Pedagógico: todos os módulos salvos; o setor só conclui depois da etapa final
+  // (disciplinas de estágio + matriz curricular)
   const pedagogicoModulosOk = (lista = registros) =>
     modulos.every((m) => isModuloConcluido(m, 'Pedagógico', lista));
+  const etapaFinalPendente = cursoAtual.tem_estagio == null || !matriz;
 
   const [etapaEstagio, setEtapaEstagio] = useState<boolean>(
     () =>
       currentSetor === 'Pedagógico' &&
-      (abrirEtapaEstagio || (cursoAtual.tem_estagio == null && pedagogicoModulosOk()))
+      (abrirEtapaEstagio || (etapaFinalPendente && pedagogicoModulosOk()))
   );
 
   // Só o primeiro módulo pendente é editável; com o setor completo, todos podem ser revisados
@@ -307,7 +327,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
   // Estágio concluído: o curso fica completo se o Pedagógico também estiver (módulos + etapa de estágio)
   const finalizarEstagio = () => {
     const atuais = getRegistrosForCourse(curso.nome_curso, curso.grau);
-    const pedCompleto = pedagogicoModulosOk(atuais) && cursoAtual.tem_estagio != null;
+    const pedCompleto = pedagogicoModulosOk(atuais) && !etapaFinalPendente;
     setShowSetorCompletedPopup({ tipo: pedCompleto ? 'curso' : 'setor', setor: 'Estágio' });
   };
 
@@ -337,6 +357,19 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     }
   };
 
+  // Curso antigo (estágio já informado, sem matriz): enviar a matriz conclui o Pedagógico
+  const handleMatrizEnviada = (nova: MatrizCurso) => {
+    const faltavaSoMatriz = !matriz && cursoAtual.tem_estagio != null && pedagogicoModulosOk();
+    setMatriz(nova);
+    if (faltavaSoMatriz) {
+      setEtapaEstagio(false);
+      setShowSetorCompletedPopup({
+        tipo: cursoAtual.status_estagio === 'completo' ? 'curso' : 'setor',
+        setor: 'Pedagógico',
+      });
+    }
+  };
+
   const handleSalvar = () => {
     const pendencia = mensagemPendencia();
     if (pendencia) {
@@ -363,22 +396,11 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     }
   };
 
-  /* ── Atalhos de produtividade ── */
-  const anterior = moduloAnterior(currentModulo);
-  const restantes = modulosSetor.filter((m) => m >= currentModulo);
+  /* ── Atalho: quem entra fica até o fim, então não há o que repetir; o atalho
+        salva o módulo atual e marca "ninguém novo" (0/0) nos módulos seguintes ── */
+  const restantes = modulosSetor.filter((m) => m > currentModulo);
 
-  const copiarModuloAnterior = () => {
-    if (anterior === undefined) return;
-    const { prof, med } = registrosDoModulo(anterior, currentSetor);
-    if (!prof || !med) return;
-    setQtdProf(String(prof.quantidade));
-    setChProf(prof.quantidade > 0 ? prof.carga_horaria : null);
-    setQtdMed(String(med.quantidade));
-    setChMed(med.quantidade > 0 ? med.carga_horaria : null);
-    setFormError(null);
-  };
-
-  const aplicarNosRestantes = () => {
+  const semNovasEntradasNosRestantes = () => {
     const pendencia = mensagemPendencia();
     if (pendencia) {
       setFormError(pendencia);
@@ -387,26 +409,42 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     const lista = restantes.map((m) => `M${m}`).join(', ');
     if (
       !window.confirm(
-        `Aplicar estes valores aos ${restantes.length} módulo(s) restante(s) (${lista}) do Setor ${currentSetor}? Você poderá ajustar depois em Consultar Registros.`
+        `Salvar o Módulo ${currentModulo} e marcar "nenhuma entrada nova" (0 professores e 0 mediadores) nos ${restantes.length} módulo(s) seguinte(s) (${lista}) do Setor ${currentSetor}?\n\nQuem já entrou continua contando até o fim do curso. Você poderá ajustar depois em Consultar Registros.`
       )
     ) {
       return;
     }
-    for (const m of restantes) gravarModulo(m);
+    gravarModulo(currentModulo);
+    for (const m of restantes) {
+      saveOrUpdateRegistro(curso.nome_curso, curso.grau, currentSetor, m, 'Professor', 0, '10h');
+      saveOrUpdateRegistro(curso.nome_curso, curso.grau, currentSetor, m, 'Mediador', 0, '10h');
+    }
     setRegistros(getRegistrosForCourse(curso.nome_curso, curso.grau));
     concluirModulosSetor();
   };
 
-  const podeCopiar =
-    anterior !== undefined && isModuloConcluido(anterior) && !isModuloConcluido(currentModulo);
-  const podeAplicarRestantes = !setorConcluido && restantes.length > 1;
+  const podeAplicarRestantes = !setorConcluido && restantes.length > 0;
   const proximo = proximoModulo(currentModulo);
+
+  /* ── Quadro vigente (regra de permanência: quem entra fica até o fim) ── */
+  const agregado = agregarModulosSetor(
+    currentSetor,
+    total,
+    registros,
+    currentSetor === 'Estágio' ? new Set(modulosSetor) : undefined
+  );
+  const quadroAnterior = agregado.modulos[currentModulo - 2];
+  const fmtQuadro = (quadro: QuadroItem[] | undefined, singular: string, plural: string) => {
+    const itens = quadro ?? [];
+    const qtd = itens.reduce((s, q) => s + q.quantidade, 0);
+    if (qtd === 0) return `nenhum ${singular}`;
+    const detalhe = itens.map((q) => `${q.quantidade}×${q.carga_horaria}`).join(', ');
+    return `${qtd} ${qtd === 1 ? singular : plural} (${detalhe})`;
+  };
 
   /* ── Resumo compacto por ano ── */
   const anos = Array.from({ length: Math.ceil(total / MODULOS_POR_ANO) }, (_, i) => i + 1);
-  const totalSetor = registros
-    .filter((r) => r.setor === currentSetor && temModulo(r.modulo))
-    .reduce((s, r) => s + r.custo, 0);
+  const totalSetor = agregado.custo_total;
   const percentual =
     modulosSetor.length > 0 ? Math.round((concluidos.size / modulosSetor.length) * 100) : 0;
   const disciplinasDoModulo = disciplinas.filter((d) => d.modulo === currentModulo);
@@ -421,11 +459,12 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
     }
     const lista = modulosDoSetor(s);
     const feitos = lista.filter((m) => isModuloConcluido(m, s)).length;
-    const completo =
-      feitos >= lista.length && (s === 'Estágio' || cursoAtual.tem_estagio != null);
+    const completo = feitos >= lista.length && (s === 'Estágio' || !etapaFinalPendente);
     const texto =
       s === 'Pedagógico' && feitos >= lista.length && cursoAtual.tem_estagio == null
         ? 'falta estágio'
+        : s === 'Pedagógico' && feitos >= lista.length && !matriz
+        ? 'falta matriz'
         : `${feitos}/${lista.length}`;
     return { texto, completo, parcial: feitos > 0 };
   };
@@ -630,6 +669,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
           registros={registros}
           edicao={cursoAtual.tem_estagio != null}
           onSaved={handleEstagioSalvo}
+          onMatrizEnviada={handleMatrizEnviada}
           onCancel={() => setEtapaEstagio(false)}
         />
       ) : (
@@ -664,28 +704,39 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   setEtapaEstagio(true);
                 }}
                 className={`text-[11px] py-1.5 px-2.5 ${
-                  cursoAtual.tem_estagio == null ? 'btn-unicive-orange' : 'btn-unicive-outline'
+                  etapaFinalPendente ? 'btn-unicive-orange' : 'btn-unicive-outline'
                 }`}
               >
-                <Pencil className="w-3 h-3 mr-1.5" />
+                {cursoAtual.tem_estagio != null && !isAdmin ? (
+                  <Eye className="w-3 h-3 mr-1.5" />
+                ) : (
+                  <Pencil className="w-3 h-3 mr-1.5" />
+                )}
                 {cursoAtual.tem_estagio == null
-                  ? 'Informar disciplinas de estágio (pendente)'
-                  : 'Editar disciplinas de estágio'}
-              </button>
-            )}
-            {podeCopiar && (
-              <button
-                type="button"
-                id="btn-copiar-modulo-anterior"
-                onClick={copiarModuloAnterior}
-                className="btn-unicive-outline text-[11px] py-1.5 px-2.5"
-                title="Copiar quantidades e cargas horárias do módulo anterior"
-              >
-                <Copy className="w-3 h-3 mr-1.5" />
-                Repetir módulo {anterior}
+                  ? 'Informar disciplinas de estágio e matriz (pendente)'
+                  : !matriz
+                  ? 'Enviar matriz curricular (pendente)'
+                  : isAdmin
+                  ? 'Editar disciplinas de estágio e matriz'
+                  : 'Ver disciplinas de estágio e matriz'}
               </button>
             )}
           </div>
+        </div>
+
+        {/* Regra de permanência + quadro que já está no curso */}
+        <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-0.5">
+          <div>
+            Informe só quem <strong>entra</strong> neste módulo. Quem entra fica até o fim do curso
+            com o mesmo salário; use 0 quando não houver ninguém novo.
+          </div>
+          {quadroAnterior && (
+            <div className="text-slate-600">
+              <span className="font-bold text-slate-800">Já no curso até o M{quadroAnterior.modulo}:</span>{' '}
+              {fmtQuadro(quadroAnterior.quadro_professor, 'professor', 'professores')} &bull;{' '}
+              {fmtQuadro(quadroAnterior.quadro_mediador, 'mediador', 'mediadores')}
+            </div>
+          )}
         </div>
 
         {/* Estágio: disciplinas de estágio deste módulo (informadas pelo Pedagógico) */}
@@ -767,7 +818,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
             <div className="leading-tight">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                Demanda do módulo
+                Entradas novas no módulo
               </span>
               <span className="text-sm font-bold text-[#117d5d]">
                 {canSalvar
@@ -792,8 +843,8 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   type="button"
                   id="btn-aplicar-restantes"
                   disabled={!canSalvar}
-                  onClick={aplicarNosRestantes}
-                  title="Salva estes valores neste módulo e em todos os módulos seguintes"
+                  onClick={semNovasEntradasNosRestantes}
+                  title="Salva este módulo e marca 0 (nenhuma entrada nova) em todos os módulos seguintes"
                   className={`text-xs font-bold px-3 py-2 rounded-lg border inline-flex items-center justify-center gap-1.5 transition-all ${
                     canSalvar
                       ? 'bg-white text-[#117d5d] border-[#239371] hover:bg-[#ebf7f2] cursor-pointer'
@@ -801,7 +852,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                   }`}
                 >
                   <ListChecks className="w-3.5 h-3.5" />
-                  Aplicar aos {restantes.length} restantes
+                  Sem novas entradas nos {restantes.length} restantes
                 </button>
               )}
               <button
@@ -844,9 +895,11 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                 <tr>
                   <th className="py-1.5 px-3 text-left">Módulo</th>
                   {currentSetor === 'Estágio' && <th className="py-1.5 px-2 text-left">CH estágio</th>}
-                  <th className="py-1.5 px-2 text-left">Professor</th>
-                  <th className="py-1.5 px-2 text-left">Mediador</th>
-                  <th className="py-1.5 px-3 text-right">Custo</th>
+                  <th className="py-1.5 px-2 text-left">Novos prof.</th>
+                  <th className="py-1.5 px-2 text-left">Novos med.</th>
+                  <th className="py-1.5 px-3 text-right" title="Custo de todo o quadro vigente no módulo (quem entrou nele e nos anteriores)">
+                    Custo do módulo
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -867,7 +920,7 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(prof)}</td>
                         <td className="py-1 px-2 tabular text-slate-700">{fmt(med)}</td>
                         <td className="py-1 px-3 text-right font-bold tabular text-slate-900">
-                          {formatCurrency((prof?.custo ?? 0) + (med?.custo ?? 0))}
+                          {formatCurrency(agregado.modulos[m - 1]?.custo_modulo ?? 0)}
                         </td>
                       </tr>
                     );

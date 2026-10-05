@@ -21,8 +21,16 @@ export interface RegistroItem {
   atualizado_em?: string;
 }
 
+/** Pessoas de um cargo no quadro vigente, agrupadas por carga horária. */
+export interface QuadroItem {
+  carga_horaria: CargaHoraria;
+  quantidade: number;
+}
+
 export interface ModuloAgregado {
   modulo: number;
+  // Custos do quadro vigente no módulo: quem entrou nele e nos anteriores
+  // (quem entra fica até o fim do curso).
   custo_professor: number;
   custo_mediador: number;
   custo_modulo: number;
@@ -32,9 +40,12 @@ export interface ModuloAgregado {
   concluido: boolean;
   // Setor Estágio: módulo sem disciplina de estágio (não entra no status nem no custo)
   sem_estagio?: boolean;
-  // Detalhes dos registros existentes neste módulo
+  // Detalhes dos registros existentes neste módulo (entradas novas do módulo)
   registro_professor?: RegistroItem;
   registro_mediador?: RegistroItem;
+  // Quadro vigente até este módulo (inclusive)
+  quadro_professor: QuadroItem[];
+  quadro_mediador: QuadroItem[];
 }
 
 export interface SetorAgregado {
@@ -76,6 +87,20 @@ export interface DisciplinaEstagio {
   modulo: number;
   nome: string;
   carga_horaria: number; // horas
+}
+
+/**
+ * Matriz curricular do curso, enviada pelo Pedagógico no fim do seu fluxo (obrigatória
+ * para concluir). Arquivo no Storage (bucket hermes-matrizes). Depois de concluída a
+ * etapa, só o admin substitui.
+ */
+export interface MatrizCurso {
+  curso_id: string;
+  storage_path: string;
+  nome_arquivo: string;
+  tipo: string;
+  tamanho: number;
+  enviado_em: string;
 }
 
 export interface CargoSalaryConfig {

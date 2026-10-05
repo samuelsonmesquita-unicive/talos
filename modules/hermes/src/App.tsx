@@ -14,12 +14,14 @@ import {
   initializeCloudDatabase,
   saveAllCourses,
   saveAllDisciplinasEstagio,
+  saveAllMatrizes,
   saveAllRegistros,
 } from './services/courseStore';
 import {
   subscribeToCourses,
   subscribeToRegistros,
   subscribeToDisciplinasEstagio,
+  subscribeToMatrizes,
   setCloudErrorHandler,
   setCostAccess,
 } from './services/cloudSync';
@@ -153,12 +155,19 @@ export default function App() {
       setRefreshKey((k) => k + 1);
     });
 
+    // Subscrição em tempo real às matrizes curriculares (enviadas pelo Pedagógico)
+    const unsubMatrizes = subscribeToMatrizes((cloudMatrizes) => {
+      saveAllMatrizes(cloudMatrizes);
+      setRefreshKey((k) => k + 1);
+    });
+
     return () => {
       isMounted = false;
       setCloudErrorHandler(null);
       unsubCourses();
       unsubRegistros();
       unsubDisciplinas();
+      unsubMatrizes();
     };
   }, [isAdmin]);
 

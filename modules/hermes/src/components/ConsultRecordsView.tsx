@@ -60,6 +60,9 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
   }, [initialCourse]);
 
   const activeCourse = courses.find((c) => c.id === selectedCourseKey) || courses[0];
+  // Quem entra num módulo fica até o fim do curso (do módulo de entrada ao último)
+  const modulosAteOFim = (modulo: number) =>
+    activeCourse ? Math.max(activeCourse.quantidade_modulos - modulo + 1, 0) : 1;
 
   // Registros do curso selecionado (Seção 5)
   const [registros, setRegistros] = useState<RegistroItem[]>(() =>
@@ -608,9 +611,10 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                   <th className="py-3 px-4">Setor</th>
                   <th className="py-3 px-4">Módulo</th>
                   <th className="py-3 px-4">Cargo</th>
-                  <th className="py-3 px-4 text-center">Qtd</th>
+                  <th className="py-3 px-4 text-center" title="Entradas novas no módulo (ficam até o fim do curso)">Qtd</th>
                   <th className="py-3 px-4">Carga</th>
-                  <th className="py-3 px-4 text-right">Custo Semestral</th>
+                  <th className="py-3 px-4 text-right" title="Custo destas pessoas em um módulo (3 meses)">Custo por Módulo</th>
+                  <th className="py-3 px-4 text-right" title="Quem entra fica até o fim do curso: custo do módulo de entrada até o último">Custo até o Fim</th>
                   <th className="py-3 px-4 text-center">Ações</th>
                 </tr>
               </thead>
@@ -644,6 +648,9 @@ export const ConsultRecordsView: React.FC<ConsultRecordsViewProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900 tabular">
                       {formatCurrency(reg.custo)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-slate-900 tabular">
+                      {formatCurrency(reg.custo * modulosAteOFim(reg.modulo))}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">

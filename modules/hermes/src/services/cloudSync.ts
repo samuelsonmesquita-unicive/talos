@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { CursoMestre, DisciplinaEstagio, RegistroItem, SalaryConfig } from '../types';
+import { CursoMestre, DisciplinaEstagio, MatrizCurso, RegistroItem, SalaryConfig } from '../types';
 
 // ---------------------------------------------------------------------------
 // Erros de nuvem: escritas são "fire-and-forget" (a interface é otimista), então
@@ -56,6 +56,8 @@ const CURSO_COLUMNS =
 
 const DISCIPLINA_ESTAGIO_COLUMNS = 'id, curso_id, modulo, nome, carga_horaria';
 
+const MATRIZ_COLUMNS = 'curso_id, storage_path, nome_arquivo, tipo, tamanho, enviado_em';
+
 const REGISTRO_COLUMNS =
   'id, indice, curso_id, setor, modulo, cargo, quantidade, carga_horaria, ' +
   'criado_em, atualizado_em, hermes_cursos!inner(nome_curso, grau)';
@@ -98,6 +100,17 @@ function toDisciplinaEstagio(row: any): DisciplinaEstagio {
     modulo: Number(row.modulo),
     nome: row.nome,
     carga_horaria: Number(row.carga_horaria),
+  };
+}
+
+function toMatriz(row: any): MatrizCurso {
+  return {
+    curso_id: row.curso_id,
+    storage_path: row.storage_path,
+    nome_arquivo: row.nome_arquivo,
+    tipo: row.tipo,
+    tamanho: Number(row.tamanho),
+    enviado_em: row.enviado_em,
   };
 }
 
@@ -195,11 +208,115 @@ export function saveEstagioToCloud(
   );
 }
 
-/** Somente admin (validado no banco). */
+/**
+ * Somente admin (validado no banco). Apaga antes a pasta da matriz no Storage
+ * (o Supabase não deixa apagar arquivos por SQL).
+ */
 export function deleteCourseFromCloud(cursoId: string): Promise<void> {
-  return enqueueWrite('Erro ao excluir o curso na nuvem', () =>
-    supabase.rpc('hermes_admin_delete_course', { p_curso_id: cursoId })
-  );
+  return enqueueWrite('Erro ao excluir o curso na nuvem', async () => {
+    await deleteMatrizFolder(cursoId);
+    return supabase.rpc('hermes_admin_delete_course', { p_curso_id: cursoId });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Matriz curricular (Storage + RPC hermes_set_matriz, Bloco 22)
+// ---------------------------------------------------------------------------
+const MATRIZ_BUCKET = 'hermes-matrizes';
+export const MATRIZ_MAX_BYTES = 10 * 1024 * 1024;
+const MATRIZ_TIPOS: Record<string, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+/** Tipo aceito (PDF/.docx) pela extensão; null se não for aceito. */
+export function tipoMatriz(file: File): string | null {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return MATRIZ_TIPOS[ext] ?? null;
+}
+
+/**
+ * Pasta da matriz = id do curso em hexadecimal (UTF-8). O Storage não aceita
+ * acentos no caminho e o id do curso tem. Igual a hermes_fn_pasta_matriz no banco.
+ */
+function pastaMatriz(cursoId: string): string {
+  return Array.from(new TextEncoder().encode(cursoId), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Nome do arquivo sem acentos/símbolos, só para o caminho no Storage. */
+function nomeSeguro(nome: string): string {
+  const limpo = nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return limpo.slice(-120) || 'matriz';
+}
+
+async function deleteMatrizFolder(cursoId: string): Promise<void> {
+  const pasta = pastaMatriz(cursoId);
+  const { data } = await supabase.storage.from(MATRIZ_BUCKET).list(pasta, { limit: 1000 });
+  if (data && data.length > 0) {
+    await supabase.storage.from(MATRIZ_BUCKET).remove(data.map((f) => `${pasta}/${f.name}`));
+  }
+}
+
+/**
+ * Envia a matriz e registra no banco. Lança erro com mensagem para a tela (tipo,
+ * tamanho ou sem permissão: depois de concluída a etapa, só o admin substitui).
+ * O arquivo anterior é apagado do Storage depois que o banco aceita o novo.
+ */
+export async function uploadMatrizToCloud(cursoId: string, file: File): Promise<MatrizCurso> {
+  const tipo = tipoMatriz(file);
+  if (!tipo) throw new Error('A matriz deve ser um arquivo PDF ou Word (.docx).');
+  if (file.size <= 0) throw new Error('O arquivo da matriz está vazio.');
+  if (file.size > MATRIZ_MAX_BYTES) throw new Error('A matriz deve ter no máximo 10 MB.');
+
+  const path = `${pastaMatriz(cursoId)}/${Date.now()}_${nomeSeguro(file.name)}`;
+  const bucket = supabase.storage.from(MATRIZ_BUCKET);
+
+  const { error: upErr } = await bucket.upload(path, file, { contentType: tipo, upsert: false });
+  if (upErr) {
+    throw new Error(
+      /row-level security|unauthorized|403/i.test(upErr.message)
+        ? 'Matriz já enviada e etapa concluída. Só o administrador pode substituir.'
+        : `Erro ao enviar a matriz: ${upErr.message}`
+    );
+  }
+
+  const { data: anterior, error } = await supabase.rpc('hermes_set_matriz', {
+    p_curso_id: cursoId,
+    p_path: path,
+    p_nome: file.name,
+    p_tipo: tipo,
+    p_tamanho: file.size,
+  });
+  if (error) {
+    await bucket.remove([path]);
+    throw new Error(error.message);
+  }
+  if (typeof anterior === 'string' && anterior) {
+    const { error: rmErr } = await bucket.remove([anterior]);
+    if (rmErr) console.warn('Não foi possível apagar a matriz anterior:', rmErr);
+  }
+
+  return {
+    curso_id: cursoId,
+    storage_path: path,
+    nome_arquivo: file.name,
+    tipo,
+    tamanho: file.size,
+    enviado_em: new Date().toISOString(),
+  };
+}
+
+/** Link temporário (5 min) para baixar a matriz com o nome original. */
+export async function getMatrizDownloadUrl(matriz: MatrizCurso): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(MATRIZ_BUCKET)
+    .createSignedUrl(matriz.storage_path, 300, { download: matriz.nome_arquivo });
+  if (error || !data) throw new Error(`Erro ao baixar a matriz: ${error?.message ?? 'link indisponível'}`);
+  return data.signedUrl;
 }
 
 /** Somente admin (validado no banco). */
@@ -280,6 +397,12 @@ export async function fetchDisciplinasEstagioFromCloud(): Promise<DisciplinaEsta
   );
   return rows.map(toDisciplinaEstagio);
 }
+export async function fetchMatrizesFromCloud(): Promise<MatrizCurso[]> {
+  const rows = await fetchAllRows<any>((from, to) =>
+    supabase.from('hermes_matrizes').select(MATRIZ_COLUMNS).order('curso_id').range(from, to)
+  );
+  return rows.map(toMatriz);
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------------------------------------------------------------------------
@@ -333,4 +456,8 @@ export function subscribeToDisciplinasEstagio(
   callback: (disciplinas: DisciplinaEstagio[]) => void
 ): () => void {
   return subscribeToTable('hermes_estagio_disciplinas', fetchDisciplinasEstagioFromCloud, callback);
+}
+
+export function subscribeToMatrizes(callback: (matrizes: MatrizCurso[]) => void): () => void {
+  return subscribeToTable('hermes_matrizes', fetchMatrizesFromCloud, callback);
 }

@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { AlertCircle, Briefcase, Plus, Save, Trash2, X } from 'lucide-react';
-import { CursoMestre, DisciplinaEstagio, RegistroItem } from '../types';
-import { saveEstagio } from '../services/courseStore';
+import { AlertCircle, Briefcase, FileText, Lock, Plus, Save, Trash2, X } from 'lucide-react';
+import { CursoMestre, DisciplinaEstagio, MatrizCurso, RegistroItem } from '../types';
+import { getMatriz, saveEstagio } from '../services/courseStore';
 import { modulosComEstagio, totaisEstagio } from '../utils/courseCalculations';
+import { useAuth } from '../hooks/useAuth';
+import { MatrizCurricular } from './MatrizCurricular';
 
 /* Etapa final do Pedagógico: informa se o curso tem estágio e quais são as
-   disciplinas de estágio da matriz (nome, módulo e carga horária). Só os módulos
-   com disciplina de estágio ficam liberados para o setor Estágio. */
+   disciplinas de estágio da matriz (nome, módulo e carga horária) e envia a
+   matriz curricular (obrigatória). Só os módulos com disciplina de estágio ficam
+   liberados para o setor Estágio.
+   Trava: depois de salva a etapa, o usuário comum só consulta (disciplinas e
+   matriz); só o admin altera. A mesma regra vale no banco (Bloco 22). */
 
 interface LinhaDisciplina {
   key: string;
@@ -22,6 +27,8 @@ interface EstagioDisciplinasStepProps {
   /** true = reabrindo a etapa depois do Pedagógico concluído (texto do botão muda) */
   edicao: boolean;
   onSaved: (curso: CursoMestre, disciplinas: DisciplinaEstagio[]) => void;
+  /** Matriz enviada/substituída (inclusive no modo travado, em curso antigo sem matriz) */
+  onMatrizEnviada?: (matriz: MatrizCurso) => void;
   onCancel?: () => void;
 }
 
@@ -39,9 +46,16 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
   registros,
   edicao,
   onSaved,
+  onMatrizEnviada,
   onCancel,
 }) => {
+  const { isAdmin } = useAuth();
   const total = curso.quantidade_modulos;
+  // Etapa já salva: só o admin altera as disciplinas de estágio
+  const travado = !isAdmin && curso.tem_estagio != null;
+  const [matriz, setMatriz] = useState<MatrizCurso | null>(() => getMatriz(curso.nome_curso, curso.grau));
+  // Matriz: usuário comum envia/substitui até concluir a etapa (ou envia uma vez, se faltar)
+  const podeEnviarMatriz = isAdmin || !(curso.tem_estagio != null && matriz);
   const modulos = Array.from({ length: total }, (_, i) => i + 1);
 
   const [temEstagio, setTemEstagio] = useState<boolean | null>(curso.tem_estagio);
@@ -73,6 +87,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
 
   const validar = (): string | null => {
     if (temEstagio === null) return 'Informe se o curso tem estágio.';
+    if (!matriz) return 'Envie a matriz curricular (PDF ou Word) para concluir.';
     if (!temEstagio) return null;
     if (linhas.length === 0) return 'Adicione pelo menos uma disciplina de estágio.';
     for (const [i, l] of linhas.entries()) {
@@ -89,9 +104,22 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
   };
 
   const handleSalvar = () => {
+    if (travado) return;
     const pendencia = validar();
     if (pendencia) {
       setErro(pendencia);
+      return;
+    }
+
+    // Conclusão pelo Pedagógico: avisa que depois só o admin altera
+    if (
+      !edicao &&
+      !window.confirm(
+        'Concluir o Pedagógico?\n\n' +
+          `Depois disso, a matriz ("${matriz?.nome_arquivo ?? ''}") e as disciplinas de estágio ` +
+          'só poderão ser alteradas pelo administrador.'
+      )
+    ) {
       return;
     }
 
@@ -130,7 +158,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
           <div className="leading-tight">
             <h3 className="text-sm sm:text-base font-bold text-slate-900">Disciplinas de estágio da matriz</h3>
             <span className="text-[11px] text-slate-500">
-              Etapa final do Pedagógico &bull; libera para o setor Estágio só os módulos com estágio
+              Etapa final do Pedagógico &bull; disciplinas de estágio e matriz curricular
             </span>
           </div>
         </div>
@@ -141,6 +169,15 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
           </button>
         )}
       </div>
+
+      {travado && (
+        <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-start gap-2">
+          <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>
+            Concluído. A matriz e as disciplinas de estágio só podem ser alteradas pelo administrador.
+          </span>
+        </div>
+      )}
 
       {/* Tem estágio? */}
       <div>
@@ -153,13 +190,18 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
               key={String(v)}
               type="button"
               id={`btn-tem-estagio-${v ? 'sim' : 'nao'}`}
+              disabled={travado}
               onClick={() => {
                 setTemEstagio(v);
                 setErro(null);
               }}
-              className={`py-2 rounded-lg text-sm font-bold border transition-all cursor-pointer ${
+              className={`py-2 rounded-lg text-sm font-bold border transition-all ${
+                travado ? 'cursor-not-allowed' : 'cursor-pointer'
+              } ${
                 temEstagio === v
                   ? 'bg-[#239371] text-white border-[#239371] shadow-xs'
+                  : travado
+                  ? 'bg-slate-50 text-slate-400 border-slate-200'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
@@ -187,6 +229,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
             <div key={l.key} className="grid grid-cols-1 sm:grid-cols-[1fr_7rem_7rem_2rem] gap-2 items-center">
               <input
                 type="text"
+                disabled={travado}
                 aria-label={`Nome da disciplina ${i + 1}`}
                 value={l.nome}
                 onChange={(e) => atualizar(l.key, 'nome', e.target.value)}
@@ -194,6 +237,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
                 className="px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#239371]"
               />
               <select
+                disabled={travado}
                 aria-label={`Módulo da disciplina ${i + 1}`}
                 value={l.modulo}
                 onChange={(e) => atualizar(l.key, 'modulo', e.target.value)}
@@ -212,6 +256,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
                   min={1}
                   step={1}
                   inputMode="numeric"
+                  disabled={travado}
                   aria-label={`Carga horária da disciplina ${i + 1}`}
                   value={l.ch}
                   onChange={(e) => atualizar(l.key, 'ch', e.target.value)}
@@ -220,6 +265,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
                 />
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">h</span>
               </div>
+              {!travado && (
               <button
                 type="button"
                 title="Remover disciplina"
@@ -228,8 +274,10 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
               </button>
+              )}
             </div>
           ))}
+          {!travado && (
           <button
             type="button"
             id="btn-adicionar-disciplina-estagio"
@@ -239,6 +287,7 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Adicionar disciplina
           </button>
+          )}
 
           {/* Totais */}
           {totais.modulos.length > 0 && (
@@ -275,6 +324,24 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
         </div>
       )}
 
+      {/* Matriz curricular (obrigatória para concluir o Pedagógico) */}
+      <div className="pt-3 border-t border-slate-100">
+        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+          <FileText className="w-3.5 h-3.5 text-[#239371]" />
+          Matriz curricular do curso
+        </span>
+        <MatrizCurricular
+          curso={curso}
+          matriz={matriz}
+          podeEnviar={podeEnviarMatriz}
+          onEnviada={(m) => {
+            setMatriz(m);
+            setErro(null);
+            onMatrizEnviada?.(m);
+          }}
+        />
+      </div>
+
       {erro && (
         <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg flex items-center gap-2">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -282,17 +349,29 @@ export const EstagioDisciplinasStep: React.FC<EstagioDisciplinasStepProps> = ({
         </div>
       )}
 
-      <div className="flex justify-end pt-3 border-t border-slate-100">
-        <button
-          type="button"
-          id="btn-salvar-estagio"
-          onClick={handleSalvar}
-          className="btn-unicive-primary text-sm px-4 py-2 font-bold inline-flex items-center gap-2 cursor-pointer"
-        >
-          <Save className="w-4 h-4" />
-          {edicao ? 'Salvar disciplinas de estágio' : 'Salvar e Concluir Pedagógico'}
-        </button>
-      </div>
+      {!travado && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 pt-3 border-t border-slate-100">
+          {!matriz && (
+            <span className="text-[11px] text-slate-500 sm:mr-auto">
+              Envie a matriz curricular para concluir.
+            </span>
+          )}
+          <button
+            type="button"
+            id="btn-salvar-estagio"
+            onClick={handleSalvar}
+            disabled={!matriz}
+            className={`text-sm px-4 py-2 font-bold rounded-lg inline-flex items-center justify-center gap-2 ${
+              matriz
+                ? 'btn-unicive-primary cursor-pointer'
+                : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
+            }`}
+          >
+            <Save className="w-4 h-4" />
+            {edicao ? 'Salvar disciplinas de estágio' : 'Salvar e Concluir Pedagógico'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

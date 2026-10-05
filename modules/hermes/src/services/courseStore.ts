@@ -1,4 +1,4 @@
-import { CargaHoraria, CursoMestre, DisciplinaEstagio, Grau, RegistroItem, Setor } from '../types';
+import { CargaHoraria, CursoMestre, DisciplinaEstagio, Grau, MatrizCurso, RegistroItem, Setor } from '../types';
 import {
   calcularCustoRegistro,
   migrarCursos,
@@ -18,7 +18,9 @@ import {
   fetchCoursesFromCloud,
   fetchRegistrosFromCloud,
   fetchDisciplinasEstagioFromCloud,
+  fetchMatrizesFromCloud,
   saveEstagioToCloud,
+  uploadMatrizToCloud,
 } from './cloudSync';
 
 // O localStorage é apenas um cache de leitura rápida/otimista. A fonte da verdade é o
@@ -27,6 +29,7 @@ import {
 const COURSES_STORAGE_KEY = 'unicive_demandas_cursos_v2';
 const REGISTROS_STORAGE_KEY = 'unicive_demandas_registros_v2';
 const ESTAGIO_STORAGE_KEY = 'unicive_demandas_estagio_v1';
+const MATRIZES_STORAGE_KEY = 'unicive_demandas_matrizes_v1';
 
 /** UUID v4 (funciona também em contextos não seguros, onde crypto.randomUUID não existe). */
 function newId(): string {
@@ -81,6 +84,44 @@ export function saveAllDisciplinasEstagio(disciplinas: DisciplinaEstagio[]): voi
   }
 }
 
+export function getAllMatrizes(): MatrizCurso[] {
+  try {
+    const raw = localStorage.getItem(MATRIZES_STORAGE_KEY);
+    if (raw !== null) {
+      return JSON.parse(raw) as MatrizCurso[];
+    }
+  } catch (e) {
+    console.error('Erro ao ler matrizes do localStorage', e);
+  }
+  return [];
+}
+
+export function saveAllMatrizes(matrizes: MatrizCurso[]): void {
+  try {
+    localStorage.setItem(MATRIZES_STORAGE_KEY, JSON.stringify(matrizes));
+  } catch (e) {
+    console.error('Erro ao salvar matrizes', e);
+  }
+}
+
+/** Matriz curricular do curso (null se o Pedagógico ainda não enviou). */
+export function getMatriz(nome_curso: string, grau: Grau): MatrizCurso | null {
+  const key = normalizeCourseKey(nome_curso, grau);
+  return getAllMatrizes().find((m) => m.curso_id === key) ?? null;
+}
+
+function temMatriz(cursoId: string): boolean {
+  return getAllMatrizes().some((m) => m.curso_id === cursoId);
+}
+
+/**
+ * Matriz travada para o usuário comum: etapa de estágio já salva e matriz já
+ * enviada (igual a hermes_fn_pode_escrever_matriz no banco). Admin nunca trava.
+ */
+export function isMatrizTravada(curso: CursoMestre): boolean {
+  return curso.tem_estagio != null && temMatriz(curso.id);
+}
+
 export function saveAllCourses(courses: CursoMestre[]): void {
   try {
     localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(migrarCursos(courses)));
@@ -103,6 +144,7 @@ export function clearLocalCache(): void {
     localStorage.removeItem(COURSES_STORAGE_KEY);
     localStorage.removeItem(REGISTROS_STORAGE_KEY);
     localStorage.removeItem(ESTAGIO_STORAGE_KEY);
+    localStorage.removeItem(MATRIZES_STORAGE_KEY);
   } catch (e) {
     console.error('Erro ao limpar cache local', e);
   }
@@ -116,14 +158,20 @@ export function clearLocalCache(): void {
  * pra ninguém autenticado (só funções internas do banco a leem).
  */
 export async function initializeCloudDatabase(): Promise<void> {
-  const [courses, registros, disciplinas] = await Promise.all([
+  const [courses, registros, disciplinas, matrizes] = await Promise.all([
     fetchCoursesFromCloud(),
     fetchRegistrosFromCloud(),
     fetchDisciplinasEstagioFromCloud(),
+    // Sem a migration 0022 a tabela não existe: não derruba a carga do resto.
+    fetchMatrizesFromCloud().catch((e) => {
+      console.warn('Falha ao carregar matrizes:', e);
+      return null;
+    }),
   ]);
   saveAllCourses(courses);
   saveAllRegistros(registros);
   saveAllDisciplinasEstagio(disciplinas);
+  if (matrizes) saveAllMatrizes(matrizes);
   // Purga qualquer cache salarial real que ainda esteja no navegador de antes
   // desta correção de segurança (dado confidencial não deve persistir aqui).
   clearStoredSalaryConfig();
@@ -301,7 +349,12 @@ export function saveOrUpdateRegistro(
   const registrosCurso = newRegistrosList.filter(
     (r) => normalizeCourseKey(r.nome_curso, r.grau) === key
   );
-  const { curso: cursoRecalculado } = recalcularCurso(course, registrosCurso, getDisciplinasEstagio(course.nome_curso, course.grau));
+  const { curso: cursoRecalculado } = recalcularCurso(
+    course,
+    registrosCurso,
+    getDisciplinasEstagio(course.nome_curso, course.grau),
+    temMatriz(key)
+  );
 
   const newCoursesList = allCourses.map((c) =>
     c.id === key ? cursoRecalculado : c
@@ -337,7 +390,8 @@ export function deleteSingleRegistro(
   const { curso: cursoRecalculado } = recalcularCurso(
     course,
     registrosRestantes,
-    getDisciplinasEstagio(course.nome_curso, course.grau)
+    getDisciplinasEstagio(course.nome_curso, course.grau),
+    temMatriz(key)
   );
 
   const updatedCourses = allCourses.map((c) =>
@@ -391,7 +445,8 @@ export function resetSectorData(
   const { curso: cursoRecalculado } = recalcularCurso(
     cursoBase,
     registrosRestantes,
-    getDisciplinasEstagio(course.nome_curso, course.grau)
+    getDisciplinasEstagio(course.nome_curso, course.grau),
+    temMatriz(key)
   );
 
   const updatedCourses = allCourses.map((c) =>
@@ -427,6 +482,7 @@ export function deleteCourse(nome_curso: string, grau: Grau): void {
   saveAllCourses(filteredCourses);
   saveAllRegistros(filteredRegistros);
   saveAllDisciplinasEstagio(getAllDisciplinasEstagio().filter((d) => d.curso_id !== key));
+  saveAllMatrizes(getAllMatrizes().filter((m) => m.curso_id !== key));
 
   deleteCourseFromCloud(key);
 }
@@ -477,13 +533,37 @@ export function saveEstagio(
   const { curso: cursoRecalculado } = recalcularCurso(
     { ...course, tem_estagio: temEstagio },
     updatedRegistros.filter((r) => normalizeCourseKey(r.nome_curso, r.grau) === key),
-    novas
+    novas,
+    temMatriz(key)
   );
   saveAllCourses(allCourses.map((c) => (c.id === key ? cursoRecalculado : c)));
 
   saveEstagioToCloud(key, temEstagio, novas);
 
   return cursoRecalculado;
+}
+
+/**
+ * Pedagógico envia (ou substitui) a matriz curricular. Diferente das outras escritas,
+ * espera a nuvem: o arquivo precisa chegar ao Storage e o banco pode recusar
+ * (depois de concluída a etapa, só o admin substitui). Lança erro com a mensagem.
+ */
+export async function uploadMatriz(curso: CursoMestre, file: File): Promise<MatrizCurso> {
+  const matriz = await uploadMatrizToCloud(curso.id, file);
+  saveAllMatrizes([...getAllMatrizes().filter((m) => m.curso_id !== curso.id), matriz]);
+
+  const allCourses = getAllCourses();
+  const course = allCourses.find((c) => c.id === curso.id);
+  if (course) {
+    const { curso: cursoRecalculado } = recalcularCurso(
+      course,
+      getRegistrosForCourse(course.nome_curso, course.grau),
+      getDisciplinasEstagio(course.nome_curso, course.grau),
+      true
+    );
+    saveAllCourses(allCourses.map((c) => (c.id === curso.id ? cursoRecalculado : c)));
+  }
+  return matriz;
 }
 
 /**
