@@ -728,7 +728,8 @@ const FlowContent: React.FC<DemandRegistrationFlowProps & { curso: CursoMestre }
         <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-0.5">
           <div>
             Informe só quem <strong>entra</strong> neste módulo. Quem entra fica até o fim do curso
-            com o mesmo salário; use 0 quando não houver ninguém novo.
+            com mesma carga horária.<br />
+            <strong>Use 0 quando não houver nenhuma contratação.</strong>
           </div>
           {quadroAnterior && (
             <div className="text-slate-600">

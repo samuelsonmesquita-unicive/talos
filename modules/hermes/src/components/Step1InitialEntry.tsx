@@ -282,11 +282,8 @@ export const Step1InitialEntry: React.FC<Step1InitialEntryProps> = ({
               <Layers className="w-3.5 h-3.5 text-[#e7972a]" /> Setor Pedagógico &bull; Estágio
             </span>
             <span className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[#7ebd73]" /> Módulo = 3 Meses (Trimestral)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#e7972a]" /> Recálculo Automático
-            </span>
+              <Clock className="w-3.5 h-3.5 text-[#7ebd73]" /> 1 Módulo = 3 Meses
+            </span>            
           </div>
         </div>
       </div>
