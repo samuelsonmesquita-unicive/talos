@@ -59,7 +59,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ resultado, loading = f
                 {Math.round(pe).toLocaleString('pt-BR')}
               </div>
               <p className="text-xs text-slate-600">
-                Número de alunos necessários para cobrir os custos de Professor/Mediador e evasão.
+                Número de alunos necessários para cobrir os custos de Professor/Mediador, já descontados
+                imposto, inadimplência, custo por aluno e repasse ao polo, e somada a evasão.
               </p>
             </>
           ) : (
@@ -79,7 +80,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ resultado, loading = f
             <p className="text-xs text-slate-700 leading-relaxed">
               Para cobrir os custos de docência (Professor e Mediador) deste curso, são necessários{' '}
               <strong className="text-[#239371]">{Math.round(pe).toLocaleString('pt-BR')} alunos matriculados</strong>{' '}
-              considerando a taxa de evasão de 2026. Esse é o número mínimo para atingir a viabilidade financeira
+              considerando a receita líquida por aluno (após imposto, inadimplência, custo por aluno e
+              repasse ao polo) e a evasão. Esse é o número mínimo para atingir a viabilidade financeira
               do módulo de custo docente.
             </p>
           </div>

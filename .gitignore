@@ -9,6 +9,13 @@ coverage/
 
 # Atalhos do Google Drive
 *.gdoc
+# planilhas de cálculo
+*.xlsx
 
+# REDAME muito detalhado
+modules/plutos/README.md
 # Scripts do banco: rodados direto no Supabase, ficam só na cópia local
 supabase/
+
+# Documentos com regras e valores de cálculo (confidencial)
+confidencial/

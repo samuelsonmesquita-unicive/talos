@@ -3,10 +3,7 @@ import { SalaryConfig } from '../types';
 const SALARY_CONFIG_KEY = 'unicive_gestao_demandas_salarios_v2';
 
 /**
- * DADO CONFIDENCIAL — a tabela salarial, o fator de encargos e qualquer
- * salário/custo calculado NUNCA ficam no código-fonte (visível a qualquer
- * pessoa que inspecione o bundle JS público) nem em cache local. Só existem
- * no banco (Supabase), sem SELECT liberado pra clientes — o custo é calculado
+ * Atention — custo é calculado
  * no servidor e só o admin o recebe, por funções que checam o papel no banco.
  * Este objeto zerado é só um esqueleto de tipo/fallback seguro.
  */

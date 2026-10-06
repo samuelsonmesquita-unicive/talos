@@ -146,8 +146,7 @@ export const SalaryModal: React.FC<SalaryModalProps> = ({
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-              Por confidencialidade, os valores atuais não são exibidos aqui. Preencha os 6 valores
-              novos abaixo — eles substituem a tabela salarial vigente ao salvar.
+              Opte sempre por editar no DB
             </div>
 
             {/* Avisos */}

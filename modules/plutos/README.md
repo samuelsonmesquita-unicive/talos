@@ -14,15 +14,22 @@ Módulo de análise de **Ponto de Equilíbrio** e viabilidade financeira para cu
 ## Fórmula do Ponto de Equilíbrio
 
 ```
-PE = [custo_total_curso(Hermes) ÷ (duração_curso × 12)] ÷ (ticket_médio − 5) × fator_evasão
+margem   = [ticket × (1 − inadimplência) − ticket × imposto − custo_por_aluno] × (1 − repasse_polo)
+PE_base  = ⌈ [custo_total_curso(Hermes) ÷ (duração_curso × 12)] ÷ margem ⌉
+PE       = ⌈ PE_base × fator_evasão ⌉
 ```
 
 Onde:
 - **custo_total_curso**: soma de Professor + Mediador (Hermes)
 - **duração_curso**: em anos
-- **ticket_médio**: valor da mensalidade
-- **5**: custo variável por aluno/mês (plataforma, boleto, editora)
-- **fator_evasão**: taxa de evasão 2026
+- **ticket**: ticket médio (mensalidade)
+- **imposto**: alíquota sobre o faturado (devida mesmo quando o aluno não paga)
+- **inadimplência**: mensalidades vencidas e não pagas ÷ total faturado
+- **custo_por_aluno**: custo fixo por aluno/mês (boleto, AVA, editora), descontado antes do repasse
+- **repasse_polo**: parte do polo sobre o que entrou, depois dos custos
+- **fator_evasão**: acréscimo de alunos para compensar a evasão
+
+Os valores dos parâmetros são confidenciais e ficam só no banco (`plutos_configuracao`).
 
 ## Setup
 
