@@ -52,14 +52,11 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-1.5 bg-[#143529] px-2.5 py-0.5 rounded-full border border-emerald-700/60 text-emerald-300">
               <CloudCheck className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               <span className="font-semibold text-[10px] tracking-wide whitespace-nowrap">
-                NUVEM CENTRALIZADA &bull; SUPABASE
+              
               </span>
             </div>
 
-            <span className="text-emerald-400 font-bold bg-[#143529] px-2 py-0.5 rounded border border-emerald-700/50 hidden md:inline whitespace-nowrap">
-              Setores Pedagógico &bull; Estágio
-            </span>
-
+            
             {profile && (
               <div className="flex items-center gap-2 bg-[#143529] px-2.5 py-0.5 rounded-full border border-emerald-700/60">
                 <span className="text-[10px] text-emerald-100 max-w-[180px] truncate" title={profile.email}>
@@ -138,16 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
 
               {isAdmin && (
-                <button
-                  id="btn-tabela-salarial"
-                  onClick={onOpenSalaryModal}
-                  title="Configuração das Faixas Salariais (Acesso Restrito a Privilégios)"
-                  className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] bg-[#ebf7f2] hover:bg-[#d8f0e5] px-2.5 py-1.5 rounded-lg border border-[#239371]/25 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <Coins className="w-3.5 h-3.5 text-[#239371] shrink-0" />
-                  <span className="whitespace-nowrap">Salários</span>
-                  <Lock className="w-3 h-3 text-amber-600 ml-0.5 shrink-0" />
-                </button>
+                
               )}
             </div>
           </div>
