@@ -24,7 +24,9 @@
       .selo.ativo { background: #ebf7f2; color: var(--verde); }
       .selo.breve { background: #eef0f2; color: #7b858f; }
       .modulo.breve { opacity: .65; cursor: default; }
-      .versao { position: fixed; bottom: 0; left: 0; padding: 0 4px; font-size: 10px; line-height: 1.25; color: #000; pointer-events: none; user-select: none; }
+      html, body { min-height: 100%; }
+      body { position: relative; min-height: 100vh; }
+      .versao { position: absolute; bottom: 0; left: 0; padding: 0 4px; font-size: 10px; line-height: 1.25; color: #000; user-select: none; }
     </style>
   </head>
   <body>

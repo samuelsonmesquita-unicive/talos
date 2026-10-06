@@ -262,20 +262,17 @@ export default function App() {
 
       {/* Footer */}
       {!IS_EMBED && (
-        <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
+        <footer className="relative bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
           <div className="max-w-6xl mx-auto px-4">
             <p>
               &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Cadastro das Disciplinas
             </p>
           </div>
+          {/* Versão do Talos: canto inferior esquerdo do rodapé (no iframe do Hermes, o rodapé não aparece) */}
+          <span className="absolute bottom-0 left-0 px-1 text-[10px] leading-tight text-black select-none">
+            v{__APP_VERSION__}
+          </span>
         </footer>
-      )}
-
-      {/* Versão do Talos: fixa no canto inferior esquerdo da janela (no iframe do Hermes, ele já mostra) */}
-      {!IS_EMBED && (
-        <span className="fixed bottom-0 left-0 z-50 px-1 text-[10px] leading-tight text-black pointer-events-none select-none">
-          v{__APP_VERSION__}
-        </span>
       )}
 
       {/* Popup de conclusão — colaborador comum, ao salvar as disciplinas */}

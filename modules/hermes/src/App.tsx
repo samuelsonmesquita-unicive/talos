@@ -322,18 +322,17 @@ export default function App() {
       </main>
 
       {/* Rodapé Institucional Unicive */}
-      <footer className="bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
+      <footer className="relative bg-white border-t border-[#e2e8e4] py-4 text-center text-xs text-slate-500 mt-auto">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-center gap-2">
           <span>
             &copy; 2026 Unicive &bull; Centro Universitário Cidade Verde &bull; Gestão de Demandas Docentes EaD
           </span>
         </div>
+        {/* Versão do Talos: canto inferior esquerdo do rodapé */}
+        <span className="absolute bottom-0 left-0 px-1 text-[10px] leading-tight text-black select-none">
+          v{__APP_VERSION__}
+        </span>
       </footer>
-
-      {/* Versão do Talos: fixa no canto inferior esquerdo da janela */}
-      <span className="fixed bottom-0 left-0 z-50 px-1 text-[10px] leading-tight text-black pointer-events-none select-none">
-        v{__APP_VERSION__}
-      </span>
 
       {/* Modal de Alerta: Interromper preenchimento? */}
       {showInterruptionModal && activeRegistration && (
