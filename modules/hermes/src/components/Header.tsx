@@ -133,10 +133,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="whitespace-nowrap">Relatório</span>
                 </button>
               )}
-
-              {isAdmin && (
-                
-              )}
             </div>
           </div>
 
