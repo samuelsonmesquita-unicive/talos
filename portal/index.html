@@ -24,6 +24,7 @@
       .selo.ativo { background: #ebf7f2; color: var(--verde); }
       .selo.breve { background: #eef0f2; color: #7b858f; }
       .modulo.breve { opacity: .65; cursor: default; }
+      .versao { position: fixed; bottom: 0; left: 0; padding: 0 4px; font-size: 10px; line-height: 1.25; color: #000; pointer-events: none; user-select: none; }
     </style>
   </head>
   <body>
@@ -56,5 +57,7 @@
         <p>Concorrência, demanda regional e tendências de novos cursos.</p>
       </div>
     </main>
+    <!-- Versão: o marcador abaixo é trocado pelo conteúdo do arquivo VERSION no deploy (deploy.yml) -->
+    <span class="versao">v__APP_VERSION__</span>
   </body>
 </html>

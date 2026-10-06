@@ -271,6 +271,13 @@ export default function App() {
         </footer>
       )}
 
+      {/* Versão do Talos: fixa no canto inferior esquerdo da janela (no iframe do Hermes, ele já mostra) */}
+      {!IS_EMBED && (
+        <span className="fixed bottom-0 left-0 z-50 px-1 text-[10px] leading-tight text-black pointer-events-none select-none">
+          v{__APP_VERSION__}
+        </span>
+      )}
+
       {/* Popup de conclusão — colaborador comum, ao salvar as disciplinas */}
       {showConcluidoPopup && (
         <div

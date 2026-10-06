@@ -57,6 +57,7 @@ jobs:
           cp -r modules/hermes/dist/. site/hermes/
           cp -r modules/plutos/dist/. site/plutos/
           cp portal/index.html site/index.html
+          sed -i "s/__APP_VERSION__/$(tr -d '[:space:]' < VERSION)/" site/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
