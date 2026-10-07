@@ -13,7 +13,7 @@ interface PlutosEmbedPanelProps {
 // URL do Plutos: em produção é o mesmo domínio (path absoluto), em dev local
 // aponta para a porta do servidor de dev do Plutos (origens diferentes = sem
 // sessão compartilhada localmente, aceitável só em desenvolvimento).
-const PLUTOS_BASE_URL = import.meta.env.VITE_PLUTOS_URL || '/talos/plutos/';
+export const PLUTOS_BASE_URL = import.meta.env.VITE_PLUTOS_URL || '/talos/plutos/';
 
 export const PlutosEmbedPanel: React.FC<PlutosEmbedPanelProps> = ({ curso, onClose, onConcluded }) => {
   const iframeOriginRef = useRef<string | null>(null);

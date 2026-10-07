@@ -8,8 +8,7 @@ import { DemandRegistrationFlow } from './components/DemandRegistrationFlow';
 import { ConsultRecordsView } from './components/ConsultRecordsView';
 import { CourseReportView } from './components/CourseReportView';
 import { GeneralReportDashboard } from './components/GeneralReportDashboard';
-import { PlutosEmbedPanel } from './components/PlutosEmbedPanel';
-import { RelatorioPreviewModal } from './components/RelatorioPreviewModal';
+import { PlutosEmbedPanel, PLUTOS_BASE_URL } from './components/PlutosEmbedPanel';
 import {
   initializeCloudDatabase,
   saveAllCourses,
@@ -104,7 +103,6 @@ export default function App() {
   // livre pela barra superior, sem curso pré-selecionado)
   const [plutosPanelOpen, setPlutosPanelOpen] = useState(false);
   const [plutosPromptCurso, setPlutosPromptCurso] = useState<CursoMestre | null>(null);
-  const [relatorioPreviewOpen, setRelatorioPreviewOpen] = useState(false);
 
   // Inicialização e listeners em tempo real com o Supabase
   useEffect(() => {
@@ -236,7 +234,11 @@ export default function App() {
           setPlutosPromptCurso(null);
           setPlutosPanelOpen(true);
         }}
-        onOpenRelatorio={() => setRelatorioPreviewOpen(true)}
+        // Relatório Executivo: página própria do Plutos na mesma aba (fora de iframe);
+        // o "Voltar ao Hermes" de lá traz de volta pra cá
+        onOpenRelatorio={() => {
+          window.location.href = `${PLUTOS_BASE_URL}?view=relatorio&origem=hermes`;
+        }}
       />
 
       {/* Conteúdo Principal Dinâmico por Aba */}
@@ -408,12 +410,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* Pré-visualização do Relatório Executivo antes de baixar */}
-      <RelatorioPreviewModal
-        isOpen={relatorioPreviewOpen}
-        onClose={() => setRelatorioPreviewOpen(false)}
-      />
 
       {/* Popup Rápido de Notificação (Toast) */}
       {toastMessage && (

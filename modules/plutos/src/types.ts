@@ -58,9 +58,11 @@ export interface RelatorioLinha {
   investimento_total: number;
   ticket_medio: number | null;
   ponto_equilibrio: number | null;
-  // Alunos por turma para pagar o curso e recuperar o investimento durante
-  // uma turma completa; null até haver ticket médio
-  payback_alunos: number | null;
+  // Meses para recuperar o investimento com a turma 10%, 20% ou 30% acima do
+  // PE; null até haver ticket médio (ou se a turma não gera sobra no mês)
+  payback_meses_10: number | null;
+  payback_meses_20: number | null;
+  payback_meses_30: number | null;
   dados_hermes_parciais: boolean;
   disciplinas_definidas: boolean;
   ticket_definido: boolean;

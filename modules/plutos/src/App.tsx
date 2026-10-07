@@ -20,12 +20,37 @@ const urlParams = new URLSearchParams(window.location.search);
 const PRESET_CURSO_ID = urlParams.get('curso_id');
 const IS_EMBED = urlParams.get('embed') === '1';
 const IS_IFRAMED = typeof window !== 'undefined' && window.self !== window.top;
+// Relatório Executivo como página própria (?view=relatorio). Nunca abre dentro
+// do iframe do Hermes (a tabela fica espremida): a aba inteira navega até ele,
+// e com origem=hermes o "Voltar" leva de volta ao Hermes.
+const VIEW_INICIAL: 'form' | 'relatorio' = urlParams.get('view') === 'relatorio' && !IS_IFRAMED ? 'relatorio' : 'form';
+const VEIO_DO_HERMES = urlParams.get('origem') === 'hermes';
+const RELATORIO_URL_HERMES = new URL('?view=relatorio&origem=hermes', window.location.href).href;
+// URL do Hermes: em produção é o mesmo domínio; em dev local, a porta do Hermes
+const HERMES_URL = import.meta.env.VITE_HERMES_URL || '/talos/hermes/';
 
 export default function App() {
   const { isAdmin } = useAuth();
 
-  const [view, setView] = useState<'form' | 'relatorio'>('form');
+  const [view, setView] = useState<'form' | 'relatorio'>(VIEW_INICIAL);
   const [mensagemRelatorio, setMensagemRelatorio] = useState<string | null>(null);
+
+  const abrirRelatorio = () => {
+    if (IS_IFRAMED && window.top) {
+      window.top.location.href = RELATORIO_URL_HERMES;
+    } else {
+      setView('relatorio');
+    }
+  };
+
+  const voltarDoRelatorio = () => {
+    if (VEIO_DO_HERMES) {
+      window.location.href = HERMES_URL;
+      return;
+    }
+    setMensagemRelatorio(null);
+    setView('form');
+  };
 
   const [cursos, setCursos] = useState<CursoMestre[]>([]);
   const [selectedCursoId, setSelectedCursoId] = useState<string | null>(PRESET_CURSO_ID);
@@ -127,7 +152,9 @@ export default function App() {
       const pendentes = linhas.filter((l) => l.ticket_medio === null);
       if (pendentes.length === 0) {
         setMensagemRelatorio('Ticket médio atualizado — todos os cursos com disciplinas definidas já têm ticket médio.');
-        setView('relatorio');
+        // No iframe do Hermes não troca de tela: mostra o aviso com o link
+        // que leva a aba inteira ao relatório
+        if (!IS_IFRAMED) setView('relatorio');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
@@ -160,21 +187,32 @@ export default function App() {
       <main className={`flex-1 w-full mx-auto p-4 sm:p-6 lg:p-8 ${view === 'relatorio' ? 'max-w-6xl' : 'max-w-4xl'}`}>
         {view === 'relatorio' && isAdmin ? (
           <RelatorioExecutivo
-            onVoltar={() => {
-              setMensagemRelatorio(null);
-              setView('form');
-            }}
-            onConcluirHermes={IS_IFRAMED ? handleConcluirEVoltar : undefined}
+            onVoltar={voltarDoRelatorio}
+            voltarLabel={VEIO_DO_HERMES ? 'Voltar ao Hermes' : undefined}
             mensagemContexto={mensagemRelatorio || undefined}
           />
         ) : (
           <div className="space-y-6">
+            {/* Aviso de fluxo concluído — no iframe do Hermes, o relatório abre na aba inteira, fora do iframe */}
+            {isAdmin && IS_IFRAMED && mensagemRelatorio && (
+              <div className="text-xs text-[#117d5d] bg-[#ebf7f2] border border-[#c8dcd7] rounded-lg px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
+                <span>✓ {mensagemRelatorio}</span>
+                <button
+                  type="button"
+                  onClick={abrirRelatorio}
+                  className="font-semibold underline hover:text-[#0d281e] cursor-pointer"
+                >
+                  Abrir Relatório Executivo
+                </button>
+              </div>
+            )}
+
             {/* Link de acesso ao relatório — só admin */}
             {isAdmin && (
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setView('relatorio')}
+                  onClick={abrirRelatorio}
                   className="flex items-center gap-1.5 text-xs font-semibold text-[#239371] hover:text-[#117d5d] cursor-pointer"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />

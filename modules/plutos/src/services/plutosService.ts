@@ -124,13 +124,17 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     'Investimento Total (R$)',
     'Ticket Médio (R$)',
     'Ponto de Equilíbrio (alunos)',
-    'Payback (alunos/turma)',
+    'Payback PE +10% (meses)',
+    'Payback PE +20% (meses)',
+    'Payback PE +30% (meses)',
     'Setores Completos (Hermes)',
     'Disciplinas Definidas',
     'Ticket Médio Definido',
   ];
 
   const fmt = (n: number) => n.toFixed(2).replace('.', ',');
+  const fmtPayback = (l: RelatorioLinha, meses: number | null) =>
+    meses !== null ? meses : l.ticket_medio === null ? 'Aguardando ticket médio' : 'Sem sobra no mês';
 
   const linhasCsv = linhas.map((l) =>
     [
@@ -149,7 +153,9 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       fmt(l.investimento_total),
       l.ticket_medio !== null ? fmt(l.ticket_medio) : '',
       l.ponto_equilibrio !== null ? l.ponto_equilibrio : 'Aguardando ticket médio',
-      l.payback_alunos !== null ? l.payback_alunos : 'Aguardando ticket médio',
+      fmtPayback(l, l.payback_meses_10),
+      fmtPayback(l, l.payback_meses_20),
+      fmtPayback(l, l.payback_meses_30),
       l.dados_hermes_parciais ? 'Não' : 'Sim',
       l.disciplinas_definidas ? 'Sim' : 'Não',
       l.ticket_definido ? 'Sim' : 'Não',
@@ -159,7 +165,7 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
   );
 
   // Linha final com a soma de professores, mediadores, custo mensal, custo total,
-  // quantidade de disciplinas, investimentos, PE e payback
+  // quantidade de disciplinas, investimentos e PE (payback em meses não soma)
   const totais = linhas.reduce(
     (acc, l) => ({
       professores: acc.professores + l.total_professores,
@@ -171,7 +177,6 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       registro: acc.registro + l.custo_registro_curso,
       investimentoTotal: acc.investimentoTotal + l.investimento_total,
       pontoEquilibrio: acc.pontoEquilibrio + (l.ponto_equilibrio ?? 0),
-      payback: acc.payback + (l.payback_alunos ?? 0),
     }),
     {
       professores: 0,
@@ -183,7 +188,6 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       registro: 0,
       investimentoTotal: 0,
       pontoEquilibrio: 0,
-      payback: 0,
     }
   );
 
@@ -203,7 +207,9 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     fmt(totais.investimentoTotal),
     '',
     totais.pontoEquilibrio,
-    totais.payback,
+    '',
+    '',
+    '',
     '',
     '',
     '',

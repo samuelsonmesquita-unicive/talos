@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Download, AlertCircle, AlertTriangle, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Download, AlertCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { RelatorioLinha } from '../types';
 import { fetchRelatorioExecutivo, exportRelatorioCSV } from '../services/plutosService';
 
 interface RelatorioExecutivoProps {
   onVoltar: () => void;
-  // Presente quando estamos embutidos no Hermes: mostra um botão extra pra
-  // concluir o fluxo e voltar (avisa o Hermes via postMessage).
-  onConcluirHermes?: () => void;
+  // Texto do botão de voltar (ex.: "Voltar ao Hermes"); padrão "Voltar"
+  voltarLabel?: string;
   // Mensagem de contexto (ex.: "Você concluiu o último curso pendente!")
   mensagemContexto?: string;
 }
 
 const fmtMoeda = (n: number) =>
   `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Cenários de turma acima do PE usados no payback (calculados no banco)
+const CENARIOS_PAYBACK = [
+  { rotulo: '+10%', campo: 'payback_meses_10' },
+  { rotulo: '+20%', campo: 'payback_meses_20' },
+  { rotulo: '+30%', campo: 'payback_meses_30' },
+] as const;
 
 /** O que falta preencher para este curso, em texto curto. */
 function pendencias(l: RelatorioLinha): string[] {
@@ -26,7 +32,7 @@ function pendencias(l: RelatorioLinha): string[] {
 
 export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
   onVoltar,
-  onConcluirHermes,
+  voltarLabel = 'Voltar',
   mensagemContexto,
 }) => {
   const [linhas, setLinhas] = useState<RelatorioLinha[]>([]);
@@ -57,7 +63,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
           className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#239371] cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Voltar
+          {voltarLabel}
         </button>
 
         <div className="flex items-center gap-2">
@@ -75,17 +81,6 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
             <Download className="w-3.5 h-3.5" />
             Exportar CSV (Excel)
           </button>
-
-          {onConcluirHermes && (
-            <button
-              type="button"
-              onClick={onConcluirHermes}
-              className="btn-unicive-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Concluir e voltar ao Hermes
-            </button>
-          )}
         </div>
       </div>
 
@@ -152,12 +147,15 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Invest. Total</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ticket Médio</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ponto de Equilíbrio</th>
-                <th
-                  className="p-3 font-semibold whitespace-nowrap text-right"
-                  title="Alunos por turma para pagar o custo docente e recuperar o investimento (disciplinas + registro MEC) durante uma turma completa, já com a evasão"
-                >
-                  Payback (alunos/turma)
-                </th>
+                {CENARIOS_PAYBACK.map(({ rotulo }) => (
+                  <th
+                    key={rotulo}
+                    className="p-3 font-semibold whitespace-nowrap text-right"
+                    title={`Meses para recuperar o investimento (disciplinas + registro MEC) com a turma ${rotulo} acima do ponto de equilíbrio`}
+                  >
+                    Payback PE {rotulo}
+                  </th>
+                ))}
                 <th className="p-3 font-semibold whitespace-nowrap">Pendências</th>
               </tr>
             </thead>
@@ -201,13 +199,20 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                         <span className="text-slate-400 font-normal">aguardando ticket</span>
                       )}
                     </td>
-                    <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
-                      {l.payback_alunos !== null ? (
-                        `${l.payback_alunos} alunos`
-                      ) : (
-                        <span className="text-slate-400 font-normal">aguardando ticket</span>
-                      )}
-                    </td>
+                    {CENARIOS_PAYBACK.map(({ rotulo, campo }) => {
+                      const meses = l[campo];
+                      return (
+                        <td key={rotulo} className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
+                          {meses !== null ? (
+                            `${meses} ${meses === 1 ? 'mês' : 'meses'}`
+                          ) : (
+                            <span className="text-slate-400 font-normal">
+                              {l.ticket_medio === null ? 'aguardando ticket' : 'sem sobra'}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="p-3 whitespace-nowrap">
                       {itensFaltantes.length === 0 ? (
                         <span className="badge-unicive-green text-[9px]">Completo</span>
@@ -260,10 +265,8 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
                   {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
                 </td>
-                <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
-                  {linhas.reduce((s, l) => s + (l.payback_alunos ?? 0), 0)} alunos
-                </td>
-                <td className="p-3"></td>
+                {/* Payback em meses não soma entre cursos */}
+                <td className="p-3" colSpan={CENARIOS_PAYBACK.length + 1}></td>
               </tr>
             </tfoot>
           </table>
