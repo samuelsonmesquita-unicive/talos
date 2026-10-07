@@ -127,25 +127,25 @@ export const RelatorioPreviewModal: React.FC<RelatorioPreviewModalProps> = ({ is
                   const itensFaltantes = pendencias(l);
                   return (
                     <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50">
-                      <td className="px-2 py-2.5font-semibold text-slate-900 leading-snug">{l.nome_curso}</td>
-                      <td className="px-2 py-2.5text-slate-600 whitespace-nowrap">{l.grau}</td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular">{l.duracao_curso} anos</td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular">{l.quantidade_modulos}</td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular">{l.total_professores}</td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular">{l.total_mediadores}</td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular whitespace-nowrap">
+                      <td className="px-2 py-2.5 font-semibold text-slate-900 leading-snug">{l.nome_curso}</td>
+                      <td className="px-2 py-2.5 text-slate-600 whitespace-nowrap">{l.grau}</td>
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular">{l.duracao_curso} anos</td>
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular">{l.quantidade_modulos}</td>
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular">{l.total_professores}</td>
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular">{l.total_mediadores}</td>
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular whitespace-nowrap">
                         {fmtMoeda(l.custo_mensal_medio_curso)}
                       </td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular whitespace-nowrap">
                         {fmtMoeda(l.custo_total_curso)}
                       </td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular whitespace-nowrap">
                         {fmtMoeda(l.custo_por_modulo)}
                       </td>
-                      <td className="px-2 py-2.5text-slate-600 text-right tabular whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-slate-600 text-right tabular whitespace-nowrap">
                         {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
                       </td>
-                      <td className="px-2 py-2.5font-bold text-[#239371] text-right tabular whitespace-nowrap">
+                      <td className="px-2 py-2.5 font-bold text-[#239371] text-right tabular whitespace-nowrap">
                         {l.ponto_equilibrio !== null ? (
                           `${l.ponto_equilibrio} alunos`
                         ) : (
@@ -174,21 +174,21 @@ export const RelatorioPreviewModal: React.FC<RelatorioPreviewModalProps> = ({ is
               </tbody>
               <tfoot>
                 <tr className="bg-[#ebf7f2] border-t-2 border-[#239371] font-bold text-slate-900">
-                  <td className="px-2 py-2.5whitespace-nowrap" colSpan={4}>TOTAL</td>
-                  <td className="px-2 py-2.5text-right tabular">
+                  <td className="px-2 py-2.5 whitespace-nowrap" colSpan={4}>TOTAL</td>
+                  <td className="px-2 py-2.5 text-right tabular">
                     {linhas.reduce((s, l) => s + l.total_professores, 0)}
                   </td>
-                  <td className="px-2 py-2.5text-right tabular">
+                  <td className="px-2 py-2.5 text-right tabular">
                     {linhas.reduce((s, l) => s + l.total_mediadores, 0)}
                   </td>
-                  <td className="px-2 py-2.5text-right tabular whitespace-nowrap">
+                  <td className="px-2 py-2.5 text-right tabular whitespace-nowrap">
                     {fmtMoeda(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}
                   </td>
-                  <td className="px-2 py-2.5text-right tabular whitespace-nowrap">
+                  <td className="px-2 py-2.5 text-right tabular whitespace-nowrap">
                     {fmtMoeda(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}
                   </td>
                   <td className="px-2 py-2.5" colSpan={2}></td>
-                  <td className="px-2 py-2.5text-[#239371] text-right tabular whitespace-nowrap">
+                  <td className="px-2 py-2.5 text-[#239371] text-right tabular whitespace-nowrap">
                     {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
                   </td>
                   <td className="px-2 py-2.5"></td>
