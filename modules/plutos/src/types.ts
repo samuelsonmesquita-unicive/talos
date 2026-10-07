@@ -52,8 +52,15 @@ export interface RelatorioLinha {
   custo_por_modulo: number;
   quantidade_disciplinas: number;
   investimento_disciplinas: number;
+  // Taxa MEC de registro de novo curso (parâmetro do banco), investimento padrão de todo curso
+  custo_registro_curso: number;
+  // investimento_disciplinas + custo_registro_curso
+  investimento_total: number;
   ticket_medio: number | null;
   ponto_equilibrio: number | null;
+  // Alunos por turma para pagar o curso e recuperar o investimento durante
+  // uma turma completa; null até haver ticket médio
+  payback_alunos: number | null;
   dados_hermes_parciais: boolean;
   disciplinas_definidas: boolean;
   ticket_definido: boolean;

@@ -120,8 +120,11 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     'Custo por Módulo (R$)',
     'Qtd. Disciplinas',
     'Investimento em Disciplinas (R$)',
+    'Registro do Curso - MEC (R$)',
+    'Investimento Total (R$)',
     'Ticket Médio (R$)',
     'Ponto de Equilíbrio (alunos)',
+    'Payback (alunos/turma)',
     'Setores Completos (Hermes)',
     'Disciplinas Definidas',
     'Ticket Médio Definido',
@@ -142,8 +145,11 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       fmt(l.custo_por_modulo),
       l.quantidade_disciplinas,
       fmt(l.investimento_disciplinas),
+      fmt(l.custo_registro_curso),
+      fmt(l.investimento_total),
       l.ticket_medio !== null ? fmt(l.ticket_medio) : '',
       l.ponto_equilibrio !== null ? l.ponto_equilibrio : 'Aguardando ticket médio',
+      l.payback_alunos !== null ? l.payback_alunos : 'Aguardando ticket médio',
       l.dados_hermes_parciais ? 'Não' : 'Sim',
       l.disciplinas_definidas ? 'Sim' : 'Não',
       l.ticket_definido ? 'Sim' : 'Não',
@@ -153,7 +159,7 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
   );
 
   // Linha final com a soma de professores, mediadores, custo mensal, custo total,
-  // quantidade de disciplinas e investimento
+  // quantidade de disciplinas, investimentos, PE e payback
   const totais = linhas.reduce(
     (acc, l) => ({
       professores: acc.professores + l.total_professores,
@@ -162,9 +168,23 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
       custoTotal: acc.custoTotal + l.custo_total_curso,
       quantidadeDisciplinas: acc.quantidadeDisciplinas + l.quantidade_disciplinas,
       investimentoDisciplinas: acc.investimentoDisciplinas + l.investimento_disciplinas,
+      registro: acc.registro + l.custo_registro_curso,
+      investimentoTotal: acc.investimentoTotal + l.investimento_total,
       pontoEquilibrio: acc.pontoEquilibrio + (l.ponto_equilibrio ?? 0),
+      payback: acc.payback + (l.payback_alunos ?? 0),
     }),
-    { professores: 0, mediadores: 0, custoMensal: 0, custoTotal: 0, quantidadeDisciplinas: 0, investimentoDisciplinas: 0, pontoEquilibrio: 0 }
+    {
+      professores: 0,
+      mediadores: 0,
+      custoMensal: 0,
+      custoTotal: 0,
+      quantidadeDisciplinas: 0,
+      investimentoDisciplinas: 0,
+      registro: 0,
+      investimentoTotal: 0,
+      pontoEquilibrio: 0,
+      payback: 0,
+    }
   );
 
   const linhaTotal = [
@@ -179,8 +199,11 @@ export function exportRelatorioCSV(linhas: RelatorioLinha[]): void {
     '',
     totais.quantidadeDisciplinas,
     fmt(totais.investimentoDisciplinas),
+    fmt(totais.registro),
+    fmt(totais.investimentoTotal),
     '',
     totais.pontoEquilibrio,
+    totais.payback,
     '',
     '',
     '',

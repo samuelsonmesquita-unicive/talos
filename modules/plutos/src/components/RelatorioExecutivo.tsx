@@ -146,8 +146,18 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Custo Mensal Médio</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Custo Total</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Custo/Módulo</th>
+                <th className="p-3 font-semibold whitespace-nowrap text-right">Qtd. Disciplinas</th>
+                <th className="p-3 font-semibold whitespace-nowrap text-right">Invest. Disciplinas</th>
+                <th className="p-3 font-semibold whitespace-nowrap text-right">Registro (MEC)</th>
+                <th className="p-3 font-semibold whitespace-nowrap text-right">Invest. Total</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ticket Médio</th>
                 <th className="p-3 font-semibold whitespace-nowrap text-right">Ponto de Equilíbrio</th>
+                <th
+                  className="p-3 font-semibold whitespace-nowrap text-right"
+                  title="Alunos por turma para pagar o custo docente e recuperar o investimento (disciplinas + registro MEC) durante uma turma completa, já com a evasão"
+                >
+                  Payback (alunos/turma)
+                </th>
                 <th className="p-3 font-semibold whitespace-nowrap">Pendências</th>
               </tr>
             </thead>
@@ -171,12 +181,29 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                     <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
                       {fmtMoeda(l.custo_por_modulo)}
                     </td>
+                    <td className="p-3 text-slate-600 text-right tabular">{l.quantidade_disciplinas}</td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.investimento_disciplinas)}
+                    </td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.custo_registro_curso)}
+                    </td>
+                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
+                      {fmtMoeda(l.investimento_total)}
+                    </td>
                     <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
                       {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
                       {l.ponto_equilibrio !== null ? (
                         `${l.ponto_equilibrio} alunos`
+                      ) : (
+                        <span className="text-slate-400 font-normal">aguardando ticket</span>
+                      )}
+                    </td>
+                    <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
+                      {l.payback_alunos !== null ? (
+                        `${l.payback_alunos} alunos`
                       ) : (
                         <span className="text-slate-400 font-normal">aguardando ticket</span>
                       )}
@@ -216,9 +243,25 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <td className="p-3 text-right tabular whitespace-nowrap">
                   {fmtMoeda(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}
                 </td>
-                <td className="p-3" colSpan={2}></td>
+                <td className="p-3"></td>
+                <td className="p-3 text-right tabular">
+                  {linhas.reduce((s, l) => s + l.quantidade_disciplinas, 0)}
+                </td>
+                <td className="p-3 text-right tabular whitespace-nowrap">
+                  {fmtMoeda(linhas.reduce((s, l) => s + l.investimento_disciplinas, 0))}
+                </td>
+                <td className="p-3 text-right tabular whitespace-nowrap">
+                  {fmtMoeda(linhas.reduce((s, l) => s + l.custo_registro_curso, 0))}
+                </td>
+                <td className="p-3 text-right tabular whitespace-nowrap">
+                  {fmtMoeda(linhas.reduce((s, l) => s + l.investimento_total, 0))}
+                </td>
+                <td className="p-3"></td>
                 <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
                   {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
+                </td>
+                <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
+                  {linhas.reduce((s, l) => s + (l.payback_alunos ?? 0), 0)} alunos
                 </td>
                 <td className="p-3"></td>
               </tr>
