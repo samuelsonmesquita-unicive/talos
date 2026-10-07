@@ -14,6 +14,23 @@ interface RelatorioExecutivoProps {
 const fmtMoeda = (n: number) =>
   `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// Número compacto para a tabela (sem "R$"; inteiro por padrão)
+const fmtNum = (n: number, casas = 0) =>
+  n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+
+// Classes das células (todo cabeçalho tem title explicando o termo): espaçamento mínimo para caber tudo na largura da tela
+const TH = 'px-1.5 py-1.5 font-semibold text-right cursor-help';
+const GRUPO = 'text-center! border-b border-[#e2e8e4]';
+const TD = 'px-1.5 py-1.5';
+const NUM = `${TD} text-right tabular whitespace-nowrap`;
+
+/** Célula sem valor: traço, com o motivo no tooltip. */
+const Vazio: React.FC<{ motivo: string }> = ({ motivo }) => (
+  <span className="text-slate-400 font-normal" title={motivo}>
+    —
+  </span>
+);
+
 // Cenários de turma acima do PE usados no payback (calculados no banco)
 const CENARIOS_PAYBACK = [
   { rotulo: '+10%', campo: 'payback_meses_10' },
@@ -128,100 +145,110 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
       )}
 
       {!loading && !error && linhas.length > 0 && (
+        // Tabela compacta: cabeçalhos agrupados e quebrando linha, valores sem
+        // "R$" e sem centavos (a unidade está no cabeçalho; o valor exato fica
+        // no tooltip). A rolagem horizontal só aparece em telas bem estreitas.
         <div className="card-unicive overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-[#e2e8e4] text-left text-slate-600">
-                <th className="p-3 font-semibold whitespace-nowrap">Curso</th>
-                <th className="p-3 font-semibold whitespace-nowrap">Grau</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Duração</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Módulos</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Professores</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Mediadores</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Custo Mensal Médio</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Custo Total</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Custo/Módulo</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Qtd. Disciplinas</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Invest. Disciplinas</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Registro (MEC)</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Invest. Total</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Ticket Médio</th>
-                <th className="p-3 font-semibold whitespace-nowrap text-right">Ponto de Equilíbrio</th>
+          <table className="w-full text-[11px] leading-tight">
+            <thead className="text-slate-600 align-bottom">
+              <tr className="bg-slate-50">
+                <th rowSpan={2} className={`${TH} text-left min-w-[150px]`} title="Nome do curso, com o grau (Bacharel, Licenciatura ou Tecnólogo) logo abaixo">Curso</th>
+                <th rowSpan={2} className={TH} title="Duração do curso em anos (a) e quantidade de módulos; cada módulo dura 3 meses">Duração / Módulos</th>
+                <th rowSpan={2} className={TH} title="Total de Professores e de Mediadores alocados no curso, somando todos os módulos">Prof. / Med.</th>
+                <th colSpan={3} className={`${TH} ${GRUPO}`} title="Custo de Professores e Mediadores, já com encargos e benefícios">Custo docente (R$)</th>
+                <th colSpan={4} className={`${TH} ${GRUPO}`} title="Gasto para abrir o curso: produção das disciplinas mais a taxa de registro no MEC">Investimento (R$)</th>
+                <th rowSpan={2} className={TH} title="Valor médio da mensalidade do curso, definido pela portaria de valores">Ticket Médio (R$)</th>
+                <th rowSpan={2} className={TH} title="Ponto de equilíbrio: alunos matriculados para que a margem por aluno pague o custo docente do mês, considerando evasão 36%">PE (alunos)</th>
+                <th
+                  colSpan={CENARIOS_PAYBACK.length}
+                  className={`${TH} ${GRUPO}`}
+                  title="Meses para a sobra mensal de uma turma acima do ponto de equilíbrio devolver o investimento"
+                >
+                  Payback (meses) com turma acima do PE
+                </th>
+                <th rowSpan={2} className={`${TH} text-left`} title="O que ainda falta preencher para o curso: disciplinas ou ticket médio">Pendências</th>
+              </tr>
+              <tr className="bg-slate-50 border-b border-[#e2e8e4]">
+                <th className={TH} title="Custo docente médio por mês ao longo do curso">Mensal médio</th>
+                <th className={TH} title="Custo docente de todo o curso: cada Professor e Mediador pago do módulo em que entra até o fim">Total</th>
+                <th className={TH} title="Custo docente total dividido pela quantidade de módulos">Por módulo</th>
+                <th className={TH} title="Quantidade de disciplinas a produzir para o curso, informado pelo pedagógico">Disciplinas (qtd)</th>
+                <th className={TH} title="Investimento em produção de disciplinas: quantidade × custo por disciplina">Disciplinas</th>
+                <th className={TH} title="Taxa paga ao MEC para registrar o curso novo">Registro MEC</th>
+                <th className={TH} title="Investimento total: disciplinas + registro MEC">Total</th>
                 {CENARIOS_PAYBACK.map(({ rotulo }) => (
                   <th
                     key={rotulo}
-                    className="p-3 font-semibold whitespace-nowrap text-right"
+                    className={TH}
                     title={`Meses para recuperar o investimento (disciplinas + registro MEC) com a turma ${rotulo} acima do ponto de equilíbrio`}
                   >
-                    Payback PE {rotulo}
+                    {rotulo}
                   </th>
                 ))}
-                <th className="p-3 font-semibold whitespace-nowrap">Pendências</th>
               </tr>
             </thead>
             <tbody>
               {linhas.map((l) => {
                 const itensFaltantes = pendencias(l);
+                const semTicket = l.ticket_medio === null;
                 return (
-                  <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50">
-                    <td className="p-3 font-semibold text-slate-900 whitespace-nowrap">{l.nome_curso}</td>
-                    <td className="p-3 text-slate-600 whitespace-nowrap">{l.grau}</td>
-                    <td className="p-3 text-slate-600 text-right tabular">{l.duracao_curso} anos</td>
-                    <td className="p-3 text-slate-600 text-right tabular">{l.quantidade_modulos}</td>
-                    <td className="p-3 text-slate-600 text-right tabular">{l.total_professores}</td>
-                    <td className="p-3 text-slate-600 text-right tabular">{l.total_mediadores}</td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.custo_mensal_medio_curso)}
+                  <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50 text-slate-600">
+                    <td className={`${TD} text-left`}>
+                      <span className="font-semibold text-slate-900">{l.nome_curso}</span>
+                      <span className="block text-[10px] text-slate-500">{l.grau}</span>
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.custo_total_curso)}
+                    <td className={NUM}>
+                      {fmtNum(l.duracao_curso, 1)} a / {l.quantidade_modulos}
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.custo_por_modulo)}
+                    <td className={NUM}>
+                      {l.total_professores} / {l.total_mediadores}
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular">{l.quantidade_disciplinas}</td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.investimento_disciplinas)}
+                    <td className={NUM} title={fmtMoeda(l.custo_mensal_medio_curso)}>
+                      {fmtNum(l.custo_mensal_medio_curso)}
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.custo_registro_curso)}
+                    <td className={NUM} title={fmtMoeda(l.custo_total_curso)}>
+                      {fmtNum(l.custo_total_curso)}
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {fmtMoeda(l.investimento_total)}
+                    <td className={NUM} title={fmtMoeda(l.custo_por_modulo)}>
+                      {fmtNum(l.custo_por_modulo)}
                     </td>
-                    <td className="p-3 text-slate-600 text-right tabular whitespace-nowrap">
-                      {l.ticket_medio !== null ? fmtMoeda(l.ticket_medio) : <span className="text-slate-400">—</span>}
+                    <td className={NUM}>{l.quantidade_disciplinas}</td>
+                    <td className={NUM} title={fmtMoeda(l.investimento_disciplinas)}>
+                      {fmtNum(l.investimento_disciplinas)}
                     </td>
-                    <td className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
-                      {l.ponto_equilibrio !== null ? (
-                        `${l.ponto_equilibrio} alunos`
-                      ) : (
-                        <span className="text-slate-400 font-normal">aguardando ticket</span>
-                      )}
+                    <td className={NUM} title={fmtMoeda(l.custo_registro_curso)}>
+                      {fmtNum(l.custo_registro_curso)}
+                    </td>
+                    <td className={NUM} title={fmtMoeda(l.investimento_total)}>
+                      {fmtNum(l.investimento_total)}
+                    </td>
+                    <td className={NUM}>
+                      {semTicket ? <Vazio motivo="Aguardando ticket médio" /> : fmtNum(l.ticket_medio!, 2)}
+                    </td>
+                    <td className={`${NUM} font-bold text-[#239371]`}>
+                      {l.ponto_equilibrio !== null ? l.ponto_equilibrio : <Vazio motivo="Aguardando ticket médio" />}
                     </td>
                     {CENARIOS_PAYBACK.map(({ rotulo, campo }) => {
                       const meses = l[campo];
                       return (
-                        <td key={rotulo} className="p-3 font-bold text-[#239371] text-right tabular whitespace-nowrap">
+                        <td key={rotulo} className={`${NUM} font-bold text-[#239371]`}>
                           {meses !== null ? (
-                            `${meses} ${meses === 1 ? 'mês' : 'meses'}`
+                            meses
                           ) : (
-                            <span className="text-slate-400 font-normal">
-                              {l.ticket_medio === null ? 'aguardando ticket' : 'sem sobra'}
-                            </span>
+                            <Vazio motivo={semTicket ? 'Aguardando ticket médio' : 'A turma deste cenário não gera sobra no mês'} />
                           )}
                         </td>
                       );
                     })}
-                    <td className="p-3 whitespace-nowrap">
+                    <td className={`${TD} text-left`}>
                       {itensFaltantes.length === 0 ? (
                         <span className="badge-unicive-green text-[9px]">Completo</span>
                       ) : (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-0.5">
                           {itensFaltantes.map((item) => (
                             <span
                               key={item}
-                              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
+                              className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
                             >
                               {item}
                             </span>
@@ -235,38 +262,24 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
             </tbody>
             <tfoot>
               <tr className="bg-[#ebf7f2] border-t-2 border-[#239371] font-bold text-slate-900">
-                <td className="p-3 whitespace-nowrap" colSpan={4}>TOTAL</td>
-                <td className="p-3 text-right tabular">
-                  {linhas.reduce((s, l) => s + l.total_professores, 0)}
-                </td>
-                <td className="p-3 text-right tabular">
+                <td className={`${TD} text-left`} colSpan={2}>TOTAL</td>
+                <td className={NUM}>
+                  {linhas.reduce((s, l) => s + l.total_professores, 0)} /{' '}
                   {linhas.reduce((s, l) => s + l.total_mediadores, 0)}
                 </td>
-                <td className="p-3 text-right tabular whitespace-nowrap">
-                  {fmtMoeda(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}
-                </td>
-                <td className="p-3 text-right tabular whitespace-nowrap">
-                  {fmtMoeda(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}
-                </td>
-                <td className="p-3"></td>
-                <td className="p-3 text-right tabular">
-                  {linhas.reduce((s, l) => s + l.quantidade_disciplinas, 0)}
-                </td>
-                <td className="p-3 text-right tabular whitespace-nowrap">
-                  {fmtMoeda(linhas.reduce((s, l) => s + l.investimento_disciplinas, 0))}
-                </td>
-                <td className="p-3 text-right tabular whitespace-nowrap">
-                  {fmtMoeda(linhas.reduce((s, l) => s + l.custo_registro_curso, 0))}
-                </td>
-                <td className="p-3 text-right tabular whitespace-nowrap">
-                  {fmtMoeda(linhas.reduce((s, l) => s + l.investimento_total, 0))}
-                </td>
-                <td className="p-3"></td>
-                <td className="p-3 text-[#239371] text-right tabular whitespace-nowrap">
-                  {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)} alunos
+                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}</td>
+                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}</td>
+                <td className={TD}></td>
+                <td className={NUM}>{linhas.reduce((s, l) => s + l.quantidade_disciplinas, 0)}</td>
+                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.investimento_disciplinas, 0))}</td>
+                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_registro_curso, 0))}</td>
+                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.investimento_total, 0))}</td>
+                <td className={TD}></td>
+                <td className={`${NUM} text-[#239371]`}>
+                  {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)}
                 </td>
                 {/* Payback em meses não soma entre cursos */}
-                <td className="p-3" colSpan={CENARIOS_PAYBACK.length + 1}></td>
+                <td className={TD} colSpan={CENARIOS_PAYBACK.length + 1}></td>
               </tr>
             </tfoot>
           </table>

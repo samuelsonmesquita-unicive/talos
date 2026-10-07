@@ -184,7 +184,12 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <main className={`flex-1 w-full mx-auto p-4 sm:p-6 lg:p-8 ${view === 'relatorio' ? 'max-w-6xl' : 'max-w-4xl'}`}>
+      {/* Relatório usa a largura toda da tela: a tabela tem muitas colunas */}
+      <main
+        className={`flex-1 w-full mx-auto ${
+          view === 'relatorio' ? 'max-w-none p-2 sm:p-3 lg:p-4' : 'max-w-4xl p-4 sm:p-6 lg:p-8'
+        }`}
+      >
         {view === 'relatorio' && isAdmin ? (
           <RelatorioExecutivo
             onVoltar={voltarDoRelatorio}
