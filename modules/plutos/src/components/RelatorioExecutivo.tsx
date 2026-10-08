@@ -24,6 +24,14 @@ const GRUPO = 'text-center! border-b border-[#e2e8e4]';
 const TD = 'px-1.5 py-1.5';
 const NUM = `${TD} text-right tabular whitespace-nowrap`;
 
+// Destaque das colunas agrupadas: linha vertical marcando o início de cada
+// grupo e uma cor por grupo (forte no cabeçalho, translúcida no corpo para
+// não apagar a cor alternada das linhas)
+const SEP = 'border-l-2 border-l-slate-300';
+const COR_CUSTO = { th: 'bg-sky-100! text-sky-900', td: 'bg-sky-50/60' };
+const COR_INVEST = { th: 'bg-amber-100! text-amber-900', td: 'bg-amber-50/60' };
+const COR_PAYBACK = { th: 'bg-[#d5efe4]! text-[#117d5d]', td: 'bg-[#ebf7f2]/60' };
+
 /** Célula sem valor: traço, com o motivo no tooltip. */
 const Vazio: React.FC<{ motivo: string }> = ({ motivo }) => (
   <span className="text-slate-400 font-normal" title={motivo}>
@@ -160,31 +168,31 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <th rowSpan={2} className={`${TH} text-left min-w-[150px]`} title="Nome do curso, com o grau (Bacharel, Licenciatura ou Tecnólogo) logo abaixo">Curso</th>
                 <th rowSpan={2} className={TH} title="Duração do curso em anos (a) e quantidade de módulos; cada módulo dura 3 meses">Duração / Módulos</th>
                 <th rowSpan={2} className={TH} title="Total de Professores e de Mediadores alocados no curso, somando todos os módulos">Prof. / Med.</th>
-                <th colSpan={3} className={`${TH} ${GRUPO}`} title="Custo de Professores e Mediadores, já com encargos e benefícios">Custo docente (R$)</th>
-                <th colSpan={4} className={`${TH} ${GRUPO}`} title="Gasto para abrir o curso: produção das disciplinas mais a taxa de registro no MEC">Investimento (R$)</th>
-                <th rowSpan={2} className={TH} title="Valor médio da mensalidade do curso, definido pela portaria de valores">Ticket Médio (R$)</th>
+                <th colSpan={3} className={`${TH} ${GRUPO} ${SEP} ${COR_CUSTO.th}`} title="Custo de Professores e Mediadores, já com encargos e benefícios">Custo docente (R$)</th>
+                <th colSpan={4} className={`${TH} ${GRUPO} ${SEP} ${COR_INVEST.th}`} title="Gasto para abrir o curso: produção das disciplinas mais a taxa de registro no MEC">Investimento (R$)</th>
+                <th rowSpan={2} className={`${TH} ${SEP}`} title="Valor médio da mensalidade do curso, definido pela portaria de valores">Ticket Médio (R$)</th>
                 <th rowSpan={2} className={TH} title="Ponto de equilíbrio: alunos matriculados para que a margem por aluno pague o custo docente do mês, considerando evasão 36%">PE (alunos)</th>
                 <th
                   colSpan={CENARIOS_PAYBACK.length}
-                  className={`${TH} ${GRUPO}`}
+                  className={`${TH} ${GRUPO} ${SEP} ${COR_PAYBACK.th}`}
                   title="Meses para a sobra mensal de uma turma acima do ponto de equilíbrio devolver o investimento"
                 >
                   Payback (meses) com turma acima do PE
                 </th>
-                <th rowSpan={2} className={`${TH} text-left`} title="O que ainda falta preencher para o curso: disciplinas ou ticket médio">Pendências</th>
+                <th rowSpan={2} className={`${TH} ${SEP} text-left`} title="O que ainda falta preencher para o curso: disciplinas ou ticket médio">Pendências</th>
               </tr>
               <tr className="bg-slate-50 border-b border-[#e2e8e4]">
-                <th className={TH} title="Custo docente médio por mês ao longo do curso">Mensal médio</th>
-                <th className={TH} title="Custo docente de todo o curso: cada Professor e Mediador pago do módulo em que entra até o fim">Total</th>
-                <th className={TH} title="Custo docente total dividido pela quantidade de módulos">Por módulo</th>
-                <th className={TH} title="Quantidade de disciplinas a produzir para o curso, informado pelo pedagógico">Disciplinas (qtd)</th>
-                <th className={TH} title="Investimento em produção de disciplinas: quantidade × custo por disciplina">Disciplinas</th>
-                <th className={TH} title="Taxa paga ao MEC para registrar o curso novo">Registro MEC</th>
-                <th className={TH} title="Investimento total: disciplinas + registro MEC">Total</th>
-                {CENARIOS_PAYBACK.map(({ rotulo }) => (
+                <th className={`${TH} ${SEP} ${COR_CUSTO.th}`} title="Custo docente médio por mês ao longo do curso">Mensal médio</th>
+                <th className={`${TH} ${COR_CUSTO.th}`} title="Custo docente de todo o curso: cada Professor e Mediador pago do módulo em que entra até o fim">Total</th>
+                <th className={`${TH} ${COR_CUSTO.th}`} title="Custo docente total dividido pela quantidade de módulos">Por módulo</th>
+                <th className={`${TH} ${SEP} ${COR_INVEST.th}`} title="Quantidade de disciplinas a produzir para o curso, informado pelo pedagógico">Disciplinas (qtd)</th>
+                <th className={`${TH} ${COR_INVEST.th}`} title="Investimento em produção de disciplinas: quantidade × custo por disciplina">Disciplinas</th>
+                <th className={`${TH} ${COR_INVEST.th}`} title="Taxa paga ao MEC para registrar o curso novo">Registro MEC</th>
+                <th className={`${TH} ${COR_INVEST.th}`} title="Investimento total: disciplinas + registro MEC">Total</th>
+                {CENARIOS_PAYBACK.map(({ rotulo }, i) => (
                   <th
                     key={rotulo}
-                    className={TH}
+                    className={`${TH} ${i === 0 ? SEP : ''} ${COR_PAYBACK.th}`}
                     title={`Meses para recuperar o investimento (disciplinas + registro MEC) com a turma ${rotulo} acima do ponto de equilíbrio`}
                   >
                     {rotulo}
@@ -197,7 +205,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 const itensFaltantes = pendencias(l);
                 const semTicket = l.ticket_medio === null;
                 return (
-                  <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 hover:bg-slate-50 text-slate-600">
+                  <tr key={l.curso_id} className="border-b border-[#e2e8e4] last:border-0 odd:bg-white even:bg-slate-100/70 hover:bg-[#ebf7f2] text-slate-600">
                     <td className={`${TD} text-left`}>
                       <span className="font-semibold text-slate-900">{l.nome_curso}</span>
                       <span className="block text-[10px] text-slate-500">{l.grau}</span>
@@ -208,37 +216,37 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                     <td className={NUM}>
                       {l.total_professores} / {l.total_mediadores}
                     </td>
-                    <td className={NUM} title={fmtMoeda(l.custo_mensal_medio_curso)}>
+                    <td className={`${NUM} ${SEP} ${COR_CUSTO.td}`} title={fmtMoeda(l.custo_mensal_medio_curso)}>
                       {fmtNum(l.custo_mensal_medio_curso)}
                     </td>
-                    <td className={NUM} title={fmtMoeda(l.custo_total_curso)}>
+                    <td className={`${NUM} ${COR_CUSTO.td}`} title={fmtMoeda(l.custo_total_curso)}>
                       {fmtNum(l.custo_total_curso)}
                     </td>
-                    <td className={NUM} title={fmtMoeda(l.custo_por_modulo)}>
+                    <td className={`${NUM} ${COR_CUSTO.td}`} title={fmtMoeda(l.custo_por_modulo)}>
                       {fmtNum(l.custo_por_modulo)}
                     </td>
-                    <td className={NUM}>{l.quantidade_disciplinas}</td>
-                    <td className={NUM} title={fmtMoeda(l.investimento_disciplinas)}>
+                    <td className={`${NUM} ${SEP} ${COR_INVEST.td}`}>{l.quantidade_disciplinas}</td>
+                    <td className={`${NUM} ${COR_INVEST.td}`} title={fmtMoeda(l.investimento_disciplinas)}>
                       {fmtNum(l.investimento_disciplinas)}
                     </td>
-                    <td className={NUM} title={fmtMoeda(l.custo_registro_curso)}>
+                    <td className={`${NUM} ${COR_INVEST.td}`} title={fmtMoeda(l.custo_registro_curso)}>
                       {fmtNum(l.custo_registro_curso)}
                     </td>
-                    <td className={NUM} title={fmtMoeda(l.investimento_total)}>
+                    <td className={`${NUM} ${COR_INVEST.td}`} title={fmtMoeda(l.investimento_total)}>
                       {fmtNum(l.investimento_total)}
                     </td>
-                    <td className={NUM}>
+                    <td className={`${NUM} ${SEP}`}>
                       {semTicket ? <Vazio motivo="Aguardando ticket médio" /> : fmtNum(l.ticket_medio!, 2)}
                     </td>
                     <td className={`${NUM} font-bold text-[#239371]`}>
                       {l.ponto_equilibrio !== null ? l.ponto_equilibrio : <Vazio motivo="Aguardando ticket médio" />}
                     </td>
-                    {CENARIOS_PAYBACK.map(({ rotulo, campo, fator }) => {
+                    {CENARIOS_PAYBACK.map(({ rotulo, campo, fator }, i) => {
                       const meses = l[campo];
                       return (
                         <td
                           key={rotulo}
-                          className={`${NUM} font-bold text-[#239371]`}
+                          className={`${NUM} ${i === 0 ? SEP : ''} ${COR_PAYBACK.td} font-bold text-[#239371]`}
                           title={
                             meses !== null && l.ponto_equilibrio !== null
                               ? `${alunosCenario(l.ponto_equilibrio, fator)} alunos`
@@ -253,7 +261,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                         </td>
                       );
                     })}
-                    <td className={`${TD} text-left`}>
+                    <td className={`${TD} ${SEP} text-left`}>
                       {itensFaltantes.length === 0 ? (
                         <span className="badge-unicive-green text-[9px]">Completo</span>
                       ) : (
@@ -280,19 +288,19 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                   {linhas.reduce((s, l) => s + l.total_professores, 0)} /{' '}
                   {linhas.reduce((s, l) => s + l.total_mediadores, 0)}
                 </td>
-                <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}</td>
+                <td className={`${NUM} ${SEP}`}>{fmtNum(linhas.reduce((s, l) => s + l.custo_mensal_medio_curso, 0))}</td>
                 <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_total_curso, 0))}</td>
                 <td className={TD}></td>
-                <td className={NUM}>{linhas.reduce((s, l) => s + l.quantidade_disciplinas, 0)}</td>
+                <td className={`${NUM} ${SEP}`}>{linhas.reduce((s, l) => s + l.quantidade_disciplinas, 0)}</td>
                 <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.investimento_disciplinas, 0))}</td>
                 <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.custo_registro_curso, 0))}</td>
                 <td className={NUM}>{fmtNum(linhas.reduce((s, l) => s + l.investimento_total, 0))}</td>
-                <td className={TD}></td>
+                <td className={`${TD} ${SEP}`}></td>
                 <td className={`${NUM} text-[#239371]`}>
                   {linhas.reduce((s, l) => s + (l.ponto_equilibrio ?? 0), 0)}
                 </td>
                 {/* Payback em meses não soma entre cursos */}
-                <td className={TD} colSpan={CENARIOS_PAYBACK.length + 1}></td>
+                <td className={`${TD} ${SEP}`} colSpan={CENARIOS_PAYBACK.length + 1}></td>
               </tr>
             </tfoot>
           </table>
