@@ -12,7 +12,7 @@ export async function fetchCursosComCusto(): Promise<CursoMestre[]> {
 }
 
 const SELECT_SEGURO =
-  'curso_id, quantidade_disciplinas, investimento_disciplinas, ponto_equilibrio, dados_hermes_parciais';
+  'curso_id, quantidade_disciplinas, investimento_disciplinas, ponto_equilibrio, dados_hermes_parciais, disciplinas_informadas';
 
 function mapResultadoSeguro(data: {
   curso_id: string;
@@ -20,6 +20,7 @@ function mapResultadoSeguro(data: {
   investimento_disciplinas: number;
   ponto_equilibrio: number | null;
   dados_hermes_parciais: boolean;
+  disciplinas_informadas: boolean;
 }): PlutosResultado {
   return {
     curso_id: data.curso_id,
@@ -27,7 +28,8 @@ function mapResultadoSeguro(data: {
     ponto_equilibrio: data.ponto_equilibrio,
     investimento_disciplinas: data.investimento_disciplinas,
     dados_hermes_parciais: data.dados_hermes_parciais,
-    disciplinasDefinidas: data.quantidade_disciplinas > 0,
+    // Marcado pelo formulário ao salvar, inclusive 0 (0 é resposta válida)
+    disciplinasDefinidas: data.disciplinas_informadas,
     ticketDefinido: data.ponto_equilibrio !== null,
   };
 }
@@ -57,7 +59,10 @@ export async function upsertQuantidadeDisciplinas(
 ): Promise<PlutosResultado> {
   const { data, error } = await supabase
     .from('plutos_inputs_curso')
-    .upsert({ curso_id: cursoId, quantidade_disciplinas: quantidade }, { onConflict: 'curso_id' })
+    .upsert(
+      { curso_id: cursoId, quantidade_disciplinas: quantidade, disciplinas_informadas: true },
+      { onConflict: 'curso_id' }
+    )
     .select(SELECT_SEGURO)
     .single();
 

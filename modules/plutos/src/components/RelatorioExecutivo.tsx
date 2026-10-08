@@ -18,9 +18,9 @@ const fmtMoeda = (n: number) =>
 const fmtNum = (n: number, casas = 0) =>
   n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 
-// Classes das células (todo cabeçalho tem title explicando o termo): espaçamento mínimo para caber tudo na largura da tela
-const TH = 'px-1.5 py-1.5 font-semibold text-right cursor-help';
-const GRUPO = 'text-center! border-b border-[#e2e8e4]';
+// Classes das células (todo cabeçalho tem title explicando o termo e fica centralizado, quebrando ou não): espaçamento mínimo para caber tudo na largura da tela
+const TH = 'px-1.5 py-1.5 font-semibold text-center cursor-help';
+const GRUPO = 'border-b border-[#e2e8e4]';
 const TD = 'px-1.5 py-1.5';
 const NUM = `${TD} text-right tabular whitespace-nowrap`;
 
@@ -165,7 +165,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
           <table className="w-full text-[11px] leading-tight">
             <thead className="text-slate-800 align-bottom">
               <tr className="bg-slate-300">
-                <th rowSpan={2} className={`${TH} text-left min-w-[150px]`} title="Nome do curso, com o grau (Bacharel, Licenciatura ou Tecnólogo) logo abaixo">Curso</th>
+                <th rowSpan={2} className={`${TH} min-w-[150px]`} title="Nome do curso, com o grau (Bacharel, Licenciatura ou Tecnólogo) logo abaixo">Curso</th>
                 <th rowSpan={2} className={TH} title="Duração do curso em anos (a) e quantidade de módulos; cada módulo dura 3 meses">Duração / Módulos</th>
                 <th rowSpan={2} className={TH} title="Total de Professores e de Mediadores alocados no curso, somando todos os módulos">Prof. / Med.</th>
                 <th colSpan={3} className={`${TH} ${GRUPO} ${SEP} ${COR_CUSTO}`} title="Custo de Professores e Mediadores, já com encargos e benefícios">Custo docente (R$)</th>
@@ -179,7 +179,7 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 >
                   Payback (meses) com turma acima do PE
                 </th>
-                <th rowSpan={2} className={`${TH} ${SEP} text-left`} title="O que ainda falta preencher para o curso: disciplinas ou ticket médio">Pendências</th>
+                <th rowSpan={2} className={`${TH} ${SEP}`} title="O que ainda falta preencher para o curso: disciplinas ou ticket médio">Pendências</th>
               </tr>
               <tr className="bg-slate-300 border-b border-slate-400">
                 <th className={`${TH} ${SEP} ${COR_CUSTO}`} title="Custo docente médio por mês ao longo do curso">Mensal médio</th>
