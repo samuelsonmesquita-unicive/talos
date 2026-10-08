@@ -187,13 +187,13 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                 <th className={`${TH} ${COR_CUSTO}`} title="Custo docente total dividido pela quantidade de módulos">Por módulo</th>
                 <th className={`${TH} ${SEP} ${COR_INVEST}`} title="Quantidade de disciplinas a produzir para o curso, informado pelo pedagógico">Disciplinas (qtd)</th>
                 <th className={`${TH} ${COR_INVEST}`} title="Investimento em produção de disciplinas: quantidade × custo por disciplina">Disciplinas</th>
-                <th className={`${TH} ${COR_INVEST}`} title="Taxa paga ao MEC para registrar o curso novo">Registro MEC</th>
-                <th className={`${TH} ${COR_INVEST}`} title="Investimento total: disciplinas + registro MEC">Total</th>
+                <th className={`${TH} ${COR_INVEST}`} title="Taxa paga ao MEC para reconhecimento do curso">Reconhecimento MEC</th>
+                <th className={`${TH} ${COR_INVEST}`} title="Investimento total: disciplinas + reconhec. MEC">Total</th>
                 {CENARIOS_PAYBACK.map(({ rotulo }, i) => (
                   <th
                     key={rotulo}
                     className={`${TH} ${i === 0 ? SEP : ''} ${COR_PAYBACK}`}
-                    title={`Meses para recuperar o investimento (disciplinas + registro MEC) com a turma ${rotulo} acima do ponto de equilíbrio`}
+                    title={`Meses para recuperar o investimento com a turma ${rotulo} acima do ponto de equilíbrio`}
                   >
                     {rotulo}
                   </th>
