@@ -31,12 +31,17 @@ const Vazio: React.FC<{ motivo: string }> = ({ motivo }) => (
   </span>
 );
 
-// Cenários de turma acima do PE usados no payback (calculados no banco)
+// Cenários de turma acima do PE usados no payback (calculados no banco).
+// `fator` só serve para mostrar o tamanho da turma no tooltip: PE × fator,
+// arredondado para cima (mesma regra do banco).
 const CENARIOS_PAYBACK = [
-  { rotulo: '+10%', campo: 'payback_meses_10' },
-  { rotulo: '+20%', campo: 'payback_meses_20' },
-  { rotulo: '+30%', campo: 'payback_meses_30' },
+  { rotulo: '+10%', campo: 'payback_meses_10', fator: 1.1 },
+  { rotulo: '+20%', campo: 'payback_meses_20', fator: 1.2 },
+  { rotulo: '+30%', campo: 'payback_meses_30', fator: 1.3 },
 ] as const;
+
+/** Alunos da turma no cenário; o toFixed tira o erro de ponto flutuante (50 × 1.1 = 55.00000000000001 viraria 56). */
+const alunosCenario = (pe: number, fator: number) => Math.ceil(Number((pe * fator).toFixed(6)));
 
 /** O que falta preencher para este curso, em texto curto. */
 function pendencias(l: RelatorioLinha): string[] {
@@ -228,10 +233,18 @@ export const RelatorioExecutivo: React.FC<RelatorioExecutivoProps> = ({
                     <td className={`${NUM} font-bold text-[#239371]`}>
                       {l.ponto_equilibrio !== null ? l.ponto_equilibrio : <Vazio motivo="Aguardando ticket médio" />}
                     </td>
-                    {CENARIOS_PAYBACK.map(({ rotulo, campo }) => {
+                    {CENARIOS_PAYBACK.map(({ rotulo, campo, fator }) => {
                       const meses = l[campo];
                       return (
-                        <td key={rotulo} className={`${NUM} font-bold text-[#239371]`}>
+                        <td
+                          key={rotulo}
+                          className={`${NUM} font-bold text-[#239371]`}
+                          title={
+                            meses !== null && l.ponto_equilibrio !== null
+                              ? `${alunosCenario(l.ponto_equilibrio, fator)} alunos`
+                              : undefined
+                          }
+                        >
                           {meses !== null ? (
                             meses
                           ) : (
